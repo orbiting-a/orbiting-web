@@ -30,12 +30,11 @@ export async function updateProfile(
   const supabase = createClient();
   const { data, error } = await supabase
     .from("profiles")
-    .update(updates)
-    .eq("id", userId)
+    .upsert({ id: userId, ...updates, updated_at: new Date().toISOString() })
     .select()
     .single();
   if (error) throw new Error(error.message);
-  return data as Profile | null;
+  return data as Profile;
 }
 
 export async function searchProfiles(query: string) {

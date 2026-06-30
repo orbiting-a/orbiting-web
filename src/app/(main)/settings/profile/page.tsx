@@ -6,7 +6,6 @@ import { Card, Input, Textarea, Button, Avatar } from "@/components/ui";
 import { ArrowLeft, Save, Upload, Wand2 } from "lucide-react";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/client";
 import { getProfile, updateProfile, uploadMedia } from "@/lib/supabase/queries";
 import type { Profile } from "@/types/database";
 
@@ -45,41 +44,31 @@ export default function EditProfilePage() {
   };
 
   const handleSave = async () => {
+    const user = await getCurrentUser();
+    if (!user) { setSaveError("Not authenticated"); return; }
+
     setSaving(true);
     setSaveError("");
     setSaveSuccess(false);
 
     try {
-      const user = await getCurrentUser();
-      if (!user) throw new Error("Not authenticated");
-
-      let p = profile;
-      if (!p) {
-        const supabase = createClient();
-        p = { id: user.id, username: username.trim(), display_name: displayName.trim() || null, bio: bio.trim() || null, avatar_url: null, phone: null, location: null, interests: [], is_verified: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() } as Profile;
-      }
-
-      let avatar_url = p.avatar_url;
+      let avatar_url = profile?.avatar_url ?? null;
 
       if (avatarFile) {
-        const path = `avatars/${p.id}/${Date.now()}-${avatarFile.name}`;
+        const path = `avatars/${user.id}/${Date.now()}-${avatarFile.name}`;
         const url = await uploadMedia(avatarFile, path);
         if (url) avatar_url = url;
       }
 
-      const result = await updateProfile(p.id, {
+      await updateProfile(user.id, {
         display_name: displayName.trim() || null,
         username: username.trim(),
         bio: bio.trim() || null,
         avatar_url,
       });
 
-      if (result) {
-        setSaveSuccess(true);
-        setTimeout(() => router.push("/settings"), 1000);
-      } else {
-        setSaveError("Failed to save profile. Try again.");
-      }
+      setSaveSuccess(true);
+      setTimeout(() => router.push("/settings"), 1000);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Something went wrong");
     } finally {

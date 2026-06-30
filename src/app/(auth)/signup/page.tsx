@@ -18,9 +18,22 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const generateUsername = (fullName: string) => {
+    const base = fullName
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, "")
+      .slice(0, 20) || "user";
+    return `${base}${Math.random().toString(36).slice(2, 6)}`;
+  };
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!name.trim()) {
+      setError("Please enter your name.");
+      return;
+    }
 
     if (!isAgreed) {
       setError("You must agree to the Terms of Use and Privacy Policy.");
@@ -33,12 +46,13 @@ export default function SignupPage() {
     }
 
     setLoading(true);
+    const username = generateUsername(name);
 
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { display_name: name },
+        data: { display_name: name, username },
       },
     });
 
@@ -51,14 +65,16 @@ export default function SignupPage() {
     if (data.user) {
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: data.user.id,
-        username: email.split("@")[0],
+        username,
         display_name: name,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
 
       if (profileError) {
-        console.warn("Profile insert error:", profileError.message);
+        setError("Failed to create profile. Try again.");
+        setLoading(false);
+        return;
       }
 
       router.push("/onboard");
