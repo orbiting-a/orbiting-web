@@ -1076,22 +1076,24 @@ export async function getTreasureHuntLeaderboard(huntId: string) {
 // ===== STORAGE =====
 
 export async function uploadMedia(file: File, path: string) {
-  // Try R2 first if configured
   const { initR2, isR2Configured, uploadToR2 } = await import("@/lib/storage");
   initR2();
   if (isR2Configured()) {
-    return uploadToR2(file, path);
+    const url = await uploadToR2(file, path);
+    if (url) return url;
   }
 
-  // Fall back to Supabase Storage
   const supabase = createClient();
-  const { data } = await supabase.storage
+  const { data, error } = await supabase.storage
     .from("orbit-media")
     .upload(path, file, {
       cacheControl: "3600",
       upsert: true,
     });
-  if (!data) return null;
+  if (error || !data) {
+    console.error("Upload failed:", error?.message);
+    throw new Error(error?.message || "Upload failed");
+  }
   const { data: url } = supabase.storage.from("orbit-media").getPublicUrl(data.path);
   return url.publicUrl;
 }

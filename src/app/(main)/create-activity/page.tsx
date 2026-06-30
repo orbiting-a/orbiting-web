@@ -1,24 +1,29 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Input, Textarea, Button } from "@/components/ui";
-import { Calendar, MapPin, Orbit as OrbitIcon } from "lucide-react";
+import { Calendar, MapPin, Navigation, Orbit as OrbitIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { getMyChannels } from "@/lib/supabase/queries";
 import type { Channel } from "@/types/database";
 
 export default function CreateActivityPage() {
   const router = useRouter();
   const supabase = createClient();
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<any>(null);
+  const markerRef = useRef<any>(null);
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [date, setDate] = useState("");
-  const [location, setLocation] = useState("");
+  const [locName, setLocName] = useState("");
   const [orbitId, setOrbitId] = useState("");
   const [orbits, setOrbits] = useState<{ id: string; name: string }[]>([]);
+  const [lat, setLat] = useState(28.6139);
+  const [lng, setLng] = useState(77.209);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     async function loadOrbits() {
@@ -35,6 +40,53 @@ export default function CreateActivityPage() {
     loadOrbits();
   }, [supabase]);
 
+  // Init mini map for location picking
+  useEffect(() => {
+    if (mapInstance.current) return;
+    const el = mapRef.current;
+    if (!el) return;
+    (async () => {
+      const L = await import("leaflet");
+      const m = L.map(el, {
+        center: [lat, lng],
+        zoom: 5,
+        zoomControl: false,
+        attributionControl: false,
+      });
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png").addTo(m);
+      const marker = L.marker([lat, lng], { draggable: true }).addTo(m);
+      marker.on("dragend", () => {
+        const pos = marker.getLatLng();
+        setLat(pos.lat);
+        setLng(pos.lng);
+      });
+      m.on("click", (e: { latlng: { lat: number; lng: number } }) => {
+        marker.setLatLng(e.latlng);
+        setLat(e.latlng.lat);
+        setLng(e.latlng.lng);
+      });
+      mapInstance.current = m;
+      markerRef.current = marker;
+      setMapReady(true);
+    })();
+    return () => { mapInstance.current?.remove(); mapInstance.current = null; };
+  }, []);
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLat(pos.coords.latitude);
+        setLng(pos.coords.longitude);
+        if (markerRef.current && mapInstance.current) {
+          markerRef.current.setLatLng([pos.coords.latitude, pos.coords.longitude]);
+          mapInstance.current.setView([pos.coords.latitude, pos.coords.longitude], 10);
+        }
+      },
+      () => {}
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!orbitId) { setError("Please select an orbit"); return; }
@@ -48,7 +100,7 @@ export default function CreateActivityPage() {
       orbit_id: orbitId,
       title: title.trim(),
       description: desc.trim() || null,
-      location: location.trim() ? { city: location.trim(), lat: 0, lng: 0, country: "" } : null,
+      location: { lat, lng, city: locName.trim(), country: "" },
       starts_at: new Date(date).toISOString(),
       created_by: user.id,
     });
@@ -110,12 +162,38 @@ export default function CreateActivityPage() {
           />
 
           <Input
-            label="Location"
+            label="Location Name"
             placeholder="e.g. Campus Central Park"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
+            value={locName}
+            onChange={(e) => setLocName(e.target.value)}
             icon={<MapPin className="h-4 w-4" />}
           />
+
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1.5">
+              Pick on Map
+            </label>
+            <div className="relative h-48 rounded-xl overflow-hidden border border-border-subtle">
+              <div ref={mapRef} className="h-full w-full" />
+              {!mapReady && (
+                <div className="absolute inset-0 flex items-center justify-center bg-surface-raised text-xs text-text-muted">
+                  Loading map...
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-between mt-1.5">
+              <span className="text-[10px] text-text-muted">
+                {lat.toFixed(4)}, {lng.toFixed(4)}
+              </span>
+              <button
+                type="button"
+                onClick={useMyLocation}
+                className="flex items-center gap-1 text-[10px] text-brand-400 hover:text-brand-300"
+              >
+                <Navigation className="h-3 w-3" /> Use my location
+              </button>
+            </div>
+          </div>
 
           {error && (
             <p className="text-sm text-red-500">{error}</p>

@@ -3,6 +3,7 @@ import { Nunito, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { Web3Provider } from "@/components/providers/Web3Provider";
 import { UserProvider } from "@/components/providers/UserProvider";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const nunito = Nunito({
@@ -46,7 +47,10 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <Web3Provider>
           <ThemeProvider>
-            <UserProvider>{children}</UserProvider>
+            <UserProvider>
+              {children}
+              <Toaster position="bottom-center" richColors closeButton />
+            </UserProvider>
           </ThemeProvider>
         </Web3Provider>
       </body>

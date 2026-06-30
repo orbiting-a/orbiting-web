@@ -5,6 +5,7 @@ import { Avatar } from "@/components/ui";
 import { Plus, Upload, X, Loader2 } from "lucide-react";
 import { getStories, createStory, uploadMedia } from "@/lib/supabase/queries";
 import { getCurrentUser } from "@/lib/auth";
+import { toast } from "sonner";
 import type { Story, Profile } from "@/types/database";
 
 export function StoryBar() {
@@ -23,11 +24,14 @@ export function StoryBar() {
     if (!file) return;
     setUploading(true);
     const path = `stories/${currentUserId}/${Date.now()}-${file.name}`;
-    const url = await uploadMedia(file, path);
-    if (url) {
+    try {
+      const url = await uploadMedia(file, path);
       await createStory(url);
+      toast.success("Story added!");
       const updated = await getStories();
       setStories(updated as (Story & { profiles: Profile })[]);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to upload story");
     }
     setShowCreate(false);
     setUploading(false);
