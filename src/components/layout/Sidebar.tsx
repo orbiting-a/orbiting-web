@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { getCurrentUser, signOut } from "@/lib/auth";
+import { signOut } from "@/lib/auth";
 import { isAdmin } from "@/lib/admin";
+import { useUser } from "@/components/providers/UserProvider";
+import { Avatar } from "@/components/ui";
 import {
   Home,
   Compass,
@@ -40,15 +41,31 @@ const secondaryItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [isAdminUser, setIsAdminUser] = useState(false);
-
-  useEffect(() => {
-    getCurrentUser().then((user) => setIsAdminUser(isAdmin(user?.id)));
-  }, []);
+  const { user, profile } = useUser();
+  const isAdminUser = isAdmin(user?.id);
+  const displayName = profile?.display_name || profile?.username || "User";
+  const avatarUrl = profile?.avatar_url || null;
 
   return (
     <aside className="hidden lg:flex flex-col w-60 shrink-0 border-r border-border h-[calc(100vh-3.5rem)] sticky top-14 overflow-y-auto">
       <nav className="flex flex-col gap-1 p-3 flex-1">
+        {/* User info */}
+        {profile && (
+          <Link
+            href="/profile/me"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-raised transition-colors mb-1"
+          >
+            <Avatar name={displayName} size="sm" src={avatarUrl} />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-text-primary truncate">{displayName}</p>
+              <p className="text-xs text-text-muted truncate">@{profile.username}</p>
+            </div>
+          </Link>
+        )}
+
+        {/* Separator */}
+        <div className="mb-2 border-t border-border-subtle" />
+
         {/* Primary Nav */}
         <div className="space-y-0.5">
           {navItems.map((item) => {
@@ -75,23 +92,8 @@ export function Sidebar() {
         {/* Separator */}
         <div className="my-3 border-t border-border-subtle" />
 
-        {/* My Orbits section */}
-        <div className="space-y-1">
-          <h3 className="px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">
-            My Orbits
-          </h3>
-          {/* Placeholder orbits */}
-          <div className="space-y-0.5 mt-2">
-            <p className="px-3 py-2 text-xs text-text-muted">
-              Join orbits to see them here
-            </p>
-          </div>
-        </div>
-
-        {/* Spacer */}
-        <div className="flex-1" />
-
         {/* Bottom items */}
+        <div className="flex-1" />
         <div className="space-y-0.5 border-t border-border-subtle pt-3">
           {secondaryItems.map((item) => {
             const isActive = pathname === item.href;

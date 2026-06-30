@@ -7,10 +7,12 @@ import { ArrowLeft, Save, Upload, Wand2 } from "lucide-react";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getProfile, updateProfile, uploadMedia } from "@/lib/supabase/queries";
+import { useUser } from "@/components/providers/UserProvider";
 import type { Profile } from "@/types/database";
 
 export default function EditProfilePage() {
   const router = useRouter();
+  const { refresh: refreshUser } = useUser();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
@@ -67,6 +69,7 @@ export default function EditProfilePage() {
         avatar_url,
       });
 
+      refreshUser();
       setSaveSuccess(true);
       setTimeout(() => router.push("/settings"), 1000);
     } catch (err) {
