@@ -95,6 +95,21 @@ export function RadarMap({
       circle.addTo(map);
       overlaysRef.current.push(circle);
 
+      // User location marker (distinct from regular markers)
+      const userIcon = L.divIcon({
+        className: "",
+        html: `<div style="position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center">
+          <div style="position:absolute;width:40px;height:40px;border-radius:50%;background:rgba(54,188,203,0.15);animation:pulse-ring 2s infinite"/>
+          <div style="position:absolute;width:24px;height:24px;border-radius:50%;background:rgba(54,188,203,0.25);animation:pulse-ring 2s infinite 0.5s"/>
+          <div style="width:12px;height:12px;border-radius:50%;background:#36BCCB;border:2.5px solid white;box-shadow:0 0 12px rgba(54,188,203,0.6)"/>
+        </div>`,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+      });
+      const userMarker = L.marker(center, { icon: userIcon, zIndexOffset: 1000 });
+      userMarker.addTo(map);
+      overlaysRef.current.push(userMarker);
+
       // Markers
       const colors: Record<string, string> = {
         orbit: "#36BCCB",
@@ -135,6 +150,12 @@ export function RadarMap({
 
   return (
     <div className="h-full w-full relative">
+      <style>{`
+        @keyframes pulse-ring {
+          0% { transform: scale(0.5); opacity: 0.6; }
+          100% { transform: scale(2); opacity: 0; }
+        }
+      `}</style>
       <div ref={mapRef} className="h-full w-full" />
       {!ready && (
         <div className="absolute inset-0 flex items-center justify-center bg-surface-raised z-10">
