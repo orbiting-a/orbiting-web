@@ -48,13 +48,10 @@ export default function ChannelPage({
   }, [channelId]);
 
   useEffect(() => {
-    let sub: { unsubscribe: () => void } | null = null;
-    (async () => {
-      sub = await subscribeToMessages(channelId, (msg) => {
-        setMessages((prev) => [...prev, msg]);
-      });
-    })();
-    return () => sub?.unsubscribe();
+    const sub = subscribeToMessages(channelId, (msg) => {
+      setMessages((prev) => [...prev, msg]);
+    });
+    return () => { void sub.unsubscribe(); };
   }, [channelId]);
 
   const handleSend = useCallback(

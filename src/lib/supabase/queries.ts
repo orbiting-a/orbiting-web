@@ -685,7 +685,7 @@ export function subscribeToMessages(
   onMessage: (message: Message & { profiles: Profile }) => void
 ) {
   const supabase = createClient();
-  return supabase
+  const channel = supabase
     .channel(`messages:${channelId}`)
     .on(
       "postgres_changes",
@@ -696,10 +696,18 @@ export function subscribeToMessages(
         filter: `channel_id=eq.${channelId}`,
       },
       (payload) => {
-        onMessage(payload.new as Message & { profiles: Profile });
+        supabase
+          .from("messages")
+          .select("*, profiles!messages_sender_id_fkey(*)")
+          .eq("id", (payload.new as { id: string }).id)
+          .single()
+          .then(({ data }) => {
+            if (data) onMessage(data as Message & { profiles: Profile });
+          });
       }
     )
     .subscribe();
+  return { channel, unsubscribe: () => channel.unsubscribe() };
 }
 
 // ===== NOTIFICATIONS =====
