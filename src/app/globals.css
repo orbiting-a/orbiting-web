@@ -1,0 +1,217 @@
+@import "tailwindcss";
+
+/* ===== ORBITING DESIGN SYSTEM ===== */
+/* Derived from Flutter app: primaryColor=#36BCCB, bg=black, surface=#20222F, font=Nunito */
+
+@theme inline {
+  --font-sans: var(--font-nunito, var(--font-geist-sans));
+  --font-mono: var(--font-geist-mono);
+
+  /* Brand Colors — matches Flutter primaryColor #36BCCB (teal/cyan) */
+  --color-brand-50: #edfbfc;
+  --color-brand-100: #d1f5f8;
+  --color-brand-200: #a8ecf2;
+  --color-brand-300: #72dde9;
+  --color-brand-400: #36bccb;
+  --color-brand-500: #2da8b6;
+  --color-brand-600: #268a99;
+  --color-brand-700: #246f7c;
+  --color-brand-800: #255b66;
+  --color-brand-900: #234c57;
+
+  /* Accent (warm complement for highlights) */
+  --color-accent-400: #f9ff54;
+  --color-accent-500: #e8ed3e;
+  --color-accent-600: #cdd22d;
+
+  /* Semantic surfaces */
+  --color-surface: var(--background);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-border: var(--border-color);
+  --color-border-subtle: var(--border-subtle);
+  --color-text-primary: var(--foreground);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  /* Radius — matching Flutter's rounded style */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-full: 9999px;
+}
+
+/* Light theme */
+:root {
+  --background: #f8fafb;
+  --foreground: #0f1419;
+  --surface-raised: #ffffff;
+  --surface-overlay: rgba(255, 255, 255, 0.88);
+  --border-color: #dce3e8;
+  --border-subtle: #edf1f4;
+  --text-secondary: #536471;
+  --text-muted: #8899a6;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.08);
+  --shadow-glow: 0 0 20px rgba(54, 188, 203, 0.15);
+}
+
+/* Dark theme — matches Flutter app exactly */
+.dark {
+  --background: #000000;
+  --foreground: #e6edf3;
+  --surface-raised: #20222f;
+  --surface-overlay: rgba(32, 34, 47, 0.92);
+  --border-color: #2e303d;
+  --border-subtle: #1a1c27;
+  --text-secondary: #a5a1ac;
+  --text-muted: #6e7681;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 20px rgba(54, 188, 203, 0.25);
+}
+
+/* ===== BASE STYLES ===== */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Focus ring — brand teal */
+:focus-visible {
+  outline: 2px solid #36bccb;
+  outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+  background: rgba(54, 188, 203, 0.2);
+}
+
+/* ===== ANIMATIONS ===== */
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in-scale {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes orbit-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+
+.animate-fade-in-scale {
+  animation: fade-in-scale 0.3s ease-out both;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out both;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.4s ease-out both;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, var(--border-subtle) 25%, var(--border-color) 50%, var(--border-subtle) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.animate-orbit-spin {
+  animation: orbit-spin 20s linear infinite;
+}
+
+/* ===== COMPONENT UTILITIES ===== */
+
+.glass {
+  background: var(--surface-overlay);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+}
+
+.surface-raised {
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.surface-card {
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.surface-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+
+.glow-brand {
+  box-shadow: var(--shadow-glow);
+}
+
+/* Hide scrollbar for chat */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Staggered children animation */
+.stagger-children > * {
+  animation: fade-in 0.4s ease-out both;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 60ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 180ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 300ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 360ms; }
+.stagger-children > *:nth-child(8) { animation-delay: 420ms; }
