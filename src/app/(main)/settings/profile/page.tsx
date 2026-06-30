@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Input, Textarea, Button, Avatar } from "@/components/ui";
-import { ArrowLeft, Save, Upload, Wand2 } from "lucide-react";
+import { ArrowLeft, Save, Upload, Wand2, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
-import { getProfile, updateProfile, uploadMedia } from "@/lib/supabase/queries";
+import { getProfile, updateProfile, uploadMedia, checkUsername } from "@/lib/supabase/queries";
 import { useUser } from "@/components/providers/UserProvider";
 import type { Profile } from "@/types/database";
 
@@ -23,10 +23,15 @@ export default function EditProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [checkingUsername, setCheckingUsername] = useState(false);
+  const checkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     getCurrentUser().then(async (user) => {
       if (!user) { router.push("/login"); return; }
+      setCurrentUserId(user.id);
       const p = await getProfile(user.id);
       if (p) {
         setProfile(p);
@@ -38,6 +43,21 @@ export default function EditProfilePage() {
     });
   }, [router]);
 
+  useEffect(() => {
+    if (checkTimeoutRef.current) clearTimeout(checkTimeoutRef.current);
+    if (!username || username === profile?.username) {
+      setUsernameAvailable(null);
+      return;
+    }
+    setCheckingUsername(true);
+    checkTimeoutRef.current = setTimeout(async () => {
+      const available = await checkUsername(username, currentUserId || undefined);
+      setUsernameAvailable(available);
+      setCheckingUsername(false);
+    }, 400);
+    return () => { if (checkTimeoutRef.current) clearTimeout(checkTimeoutRef.current); };
+  }, [username, currentUserId, profile?.username]);
+
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -48,6 +68,11 @@ export default function EditProfilePage() {
   const handleSave = async () => {
     const user = await getCurrentUser();
     if (!user) { setSaveError("Not authenticated"); return; }
+
+    if (usernameAvailable === false) {
+      setSaveError("Username is already taken.");
+      return;
+    }
 
     setSaving(true);
     setSaveError("");
@@ -118,7 +143,24 @@ export default function EditProfilePage() {
         {saveSuccess && <p className="text-sm text-green-400 bg-green-500/10 rounded-xl p-3">Profile saved! Redirecting...</p>}
 
         <Input label="Display Name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your display name" />
-        <Input label="Username" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))} placeholder="username" />
+        <div className="relative">
+          <Input label="Username" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))} placeholder="username" />
+          <div className="absolute right-3 top-[38px]">
+            {checkingUsername ? (
+              <Loader2 className="h-4 w-4 animate-spin text-text-muted" />
+            ) : usernameAvailable === true ? (
+              <CheckCircle className="h-4 w-4 text-green-400" />
+            ) : usernameAvailable === false ? (
+              <XCircle className="h-4 w-4 text-red-400" />
+            ) : null}
+          </div>
+          {usernameAvailable === false && (
+            <p className="text-xs text-red-400 mt-1">Username already taken</p>
+          )}
+          {usernameAvailable === true && (
+            <p className="text-xs text-green-400 mt-1">Username available</p>
+          )}
+        </div>
         <Textarea label="Bio" value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Tell us about yourself..." rows={3} />
 
         <div className="flex gap-3 pt-2">

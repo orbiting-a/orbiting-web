@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Card, Button } from "@/components/ui";
+import Image from "next/image";
 import { ArrowLeft, Save, Upload, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -128,9 +129,16 @@ export default function AvatarCreationPage() {
       <div className="flex flex-col items-center mb-8">
         <div className="w-40 h-40 rounded-2xl overflow-hidden mb-4 border-2 border-border-subtle">
           {uploadedUrl ? (
-            <img src={uploadedUrl} alt="" className="w-full h-full object-cover" />
+            <Image src={uploadedUrl} alt="" width={160} height={160} className="w-full h-full object-cover" />
           ) : (
-            <img src={`data:image/svg+xml;base64,${btoa(previewSvg)}`} alt="Avatar preview" className="w-full h-full" />
+            <Image
+              src={`data:image/svg+xml;base64,${btoa(previewSvg)}`}
+              alt="Avatar preview"
+              width={160}
+              height={160}
+              className="w-full h-full"
+              unoptimized
+            />
           )}
         </div>
         <div className="flex gap-3">

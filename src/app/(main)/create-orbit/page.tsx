@@ -2,8 +2,9 @@
 
 import { useState, useRef } from "react";
 import { Card, Button, Input, Textarea } from "@/components/ui";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Globe, Lock, ArrowLeft, Image, MapPin, Plus, X, Link2 } from "lucide-react";
+import { Globe, Lock, ArrowLeft, Image as ImageIcon, MapPin, Plus, X, Link2 } from "lucide-react";
 import { createOrbit, uploadMedia } from "@/lib/supabase/queries";
 import Link from "next/link";
 import { slugify } from "@/lib/utils";
@@ -179,9 +180,9 @@ export default function CreateOrbitPage() {
                   className="h-16 w-16 rounded-xl bg-surface-raised border-2 border-dashed border-border-subtle flex items-center justify-center cursor-pointer hover:border-brand-400 transition-colors overflow-hidden"
                 >
                   {logoPreview ? (
-                    <img src={logoPreview} alt="" className="w-full h-full object-cover" />
+                    <Image src={logoPreview} alt="" width={64} height={64} className="w-full h-full object-cover" unoptimized />
                   ) : (
-                    <Image className="h-6 w-6 text-text-muted" />
+                    <ImageIcon className="h-6 w-6 text-text-muted" />
                   )}
                 </div>
                 <input ref={logoRef} type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
@@ -192,10 +193,10 @@ export default function CreateOrbitPage() {
                 className="h-24 rounded-xl bg-surface-raised border-2 border-dashed border-border-subtle flex items-center justify-center cursor-pointer hover:border-brand-400 transition-colors overflow-hidden"
               >
                 {coverPreview ? (
-                  <img src={coverPreview} alt="" className="w-full h-full object-cover" />
+                  <Image src={coverPreview} alt="" width={400} height={96} className="w-full h-full object-cover" unoptimized />
                 ) : (
                   <div className="flex flex-col items-center gap-1">
-                    <Image className="h-5 w-5 text-text-muted" />
+                    <ImageIcon className="h-5 w-5 text-text-muted" />
                     <span className="text-xs text-text-muted">Cover image</span>
                   </div>
                 )}

@@ -2,12 +2,13 @@
 
 import { use, useState, useEffect } from "react";
 import { Card, Avatar, Button } from "@/components/ui";
-import { Trophy, Calendar, Users, ArrowLeft, Image, Video, MapPin } from "lucide-react";
+import Image from "next/image";
+import { Trophy, Calendar, Users, ArrowLeft, Image as ImageIcon, Video, MapPin } from "lucide-react";
 import Link from "next/link";
 import { getChallenge } from "@/lib/supabase/queries";
 import type { Challenge, Profile } from "@/types/database";
 
-const typeIcons = { photo: Image, video: Video, text: Trophy, location: MapPin };
+const typeIcons = { photo: ImageIcon, video: Video, text: Trophy, location: MapPin };
 
 export default function ChallengePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -53,7 +54,7 @@ export default function ChallengePage({ params }: { params: Promise<{ id: string
       <Card padding="lg">
         {challenge.cover_url && (
           <div className="h-40 -mx-6 -mt-6 mb-6 overflow-hidden">
-            <img src={challenge.cover_url} alt="" className="w-full h-full object-cover" />
+            <Image src={challenge.cover_url} alt="" width={800} height={160} className="w-full h-full object-cover" />
           </div>
         )}
 

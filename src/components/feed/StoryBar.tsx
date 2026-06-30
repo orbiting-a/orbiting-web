@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Avatar } from "@/components/ui";
+import Image from "next/image";
 import { Plus, Upload, X, Loader2 } from "lucide-react";
 import { getStories, createStory, uploadMedia } from "@/lib/supabase/queries";
 import { getCurrentUser } from "@/lib/auth";
@@ -60,7 +61,7 @@ export function StoryBar() {
             <div className="h-14 w-14 rounded-full bg-gradient-to-br from-brand-400 to-purple-500 p-[2px]">
               <div className="w-full h-full rounded-full bg-surface-raised overflow-hidden">
                 {story.profiles?.avatar_url ? (
-                  <img src={story.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                  <Image src={story.profiles.avatar_url} alt="" width={56} height={56} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-xs font-bold text-text-primary">
                     {(story.profiles?.display_name || "U")[0]}

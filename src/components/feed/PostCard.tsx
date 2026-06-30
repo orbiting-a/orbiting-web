@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, Avatar, Button } from "@/components/ui";
+import { Card, Avatar } from "@/components/ui";
+import { ImageModal } from "@/components/ui/ImageModal";
 import {
   Heart,
   MessageCircle,
@@ -11,7 +12,9 @@ import {
   BarChart3,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { toggleLike, votePoll, getPollVote } from "@/lib/supabase/queries";
+import { thumbnailUrl } from "@/lib/compress-image";
 import type { Post, Profile, Orbit } from "@/types/database";
 
 type PostWithRelations = Post & {
@@ -31,6 +34,7 @@ export function PostCard({
   const [pollVote, setPollVote] = useState(-1);
   const [pollOptions, setPollOptions] = useState<{ text: string; votes: number }[]>(post.poll?.options || []);
   const [totalVotes, setTotalVotes] = useState(0);
+  const [selectedImage, setSelectedImage] = useState<number | null>(null);
 
   useEffect(() => {
     if (post.poll) {
@@ -106,7 +110,7 @@ export function PostCard({
 
       {post.media_urls && post.media_urls.length > 0 && (
         <div
-          className={`grid gap-2 mb-3 rounded-xl overflow-hidden ${
+          className={`grid gap-0.5 mb-3 rounded-xl overflow-hidden ${
             post.media_urls.length === 1
               ? "grid-cols-1"
               : post.media_urls.length === 2
@@ -115,17 +119,25 @@ export function PostCard({
           }`}
         >
           {post.media_urls.slice(0, 4).map((url, i) => (
-            <div
+            <button
               key={i}
-              className="relative bg-surface-raised aspect-square"
+              onClick={() => setSelectedImage(i)}
+              className="relative bg-surface-raised aspect-square overflow-hidden group/image"
             >
-              <img
-                src={url}
+              <Image
+                src={thumbnailUrl(url)}
                 alt=""
+                width={400}
+                height={400}
                 className="w-full h-full object-cover"
                 loading="lazy"
               />
-            </div>
+              {post.media_urls.length > 4 && i === 3 && (
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-lg font-bold">
+                  +{post.media_urls.length - 4}
+                </div>
+              )}
+            </button>
           ))}
         </div>
       )}
@@ -197,6 +209,14 @@ export function PostCard({
           <Bookmark className="h-4 w-4" />
         </button>
       </div>
+
+      {selectedImage !== null && (
+        <ImageModal
+          images={post.media_urls}
+          initialIndex={selectedImage}
+          onClose={() => setSelectedImage(null)}
+        />
+      )}
     </Card>
   );
 }

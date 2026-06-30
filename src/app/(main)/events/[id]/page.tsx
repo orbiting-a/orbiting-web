@@ -2,6 +2,7 @@
 
 import { use, useState, useEffect } from "react";
 import { Card, Avatar, Button } from "@/components/ui";
+import Image from "next/image";
 import { Calendar, MapPin, Users, Clock, ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { getEvent, rsvpEvent, hasRsvpd } from "@/lib/supabase/queries";
@@ -76,7 +77,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       <Card padding="lg">
         {event.cover_url && (
           <div className="h-40 -mx-6 -mt-6 mb-6 overflow-hidden">
-            <img src={event.cover_url} alt="" className="w-full h-full object-cover" />
+            <Image src={event.cover_url} alt="" width={800} height={160} className="w-full h-full object-cover" />
           </div>
         )}
 

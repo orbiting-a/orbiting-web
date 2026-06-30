@@ -2,6 +2,7 @@
 
 import { use, useState, useEffect } from "react";
 import { Card, Avatar, Button } from "@/components/ui";
+import { ImageModal } from "@/components/ui/ImageModal";
 import {
   Heart,
   MessageCircle,
@@ -11,7 +12,9 @@ import {
   Send,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { getPost, getComments, createComment, toggleLike, hasLiked } from "@/lib/supabase/queries";
+import { thumbnailUrl } from "@/lib/compress-image";
 import type { Post, Profile, Orbit, Comment } from "@/types/database";
 
 type PostWithRelations = Post & {
@@ -30,6 +33,7 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
   const [loading, setLoading] = useState(true);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
+  const [selectedImage, setSelectedImage] = useState<number | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -142,13 +146,29 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
         </p>
 
         {post.media_urls && post.media_urls.length > 0 && (
-          <div className={`grid gap-2 mb-4 rounded-xl overflow-hidden ${
+          <div className={`grid gap-0.5 mb-4 rounded-xl overflow-hidden ${
             post.media_urls.length === 1 ? "grid-cols-1" : "grid-cols-2"
           }`}>
             {post.media_urls.slice(0, 4).map((url, i) => (
-              <div key={i} className="relative bg-surface-raised aspect-square">
-                <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
-              </div>
+              <button
+                key={i}
+                onClick={() => setSelectedImage(i)}
+                className="relative bg-surface-raised aspect-square overflow-hidden group/image"
+              >
+                <Image
+                  src={thumbnailUrl(url)}
+                  alt=""
+                  width={400}
+                  height={400}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+                {post.media_urls.length > 4 && i === 3 && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-lg font-bold">
+                    +{post.media_urls.length - 4}
+                  </div>
+                )}
+              </button>
             ))}
           </div>
         )}
@@ -241,6 +261,14 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
           </Button>
         </div>
       </form>
+
+      {selectedImage !== null && (
+        <ImageModal
+          images={post.media_urls}
+          initialIndex={selectedImage}
+          onClose={() => setSelectedImage(null)}
+        />
+      )}
     </div>
   );
 }

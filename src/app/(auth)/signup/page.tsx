@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button, Input } from "@/components/ui";
-import { AlertCircle, Eye, EyeOff, Mail, Lock, User } from "lucide-react";
+import { checkUsername } from "@/lib/supabase/queries";
+import { AlertCircle, Eye, EyeOff, Mail, Lock, User, AtSign, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 export default function SignupPage() {
@@ -13,10 +14,15 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isAgreed, setIsAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [checkingUsername, setCheckingUsername] = useState(false);
+  const nameChangedRef = useRef(false);
+  const checkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const generateUsername = (fullName: string) => {
     const base = fullName
@@ -26,12 +32,46 @@ export default function SignupPage() {
     return `${base}${Math.random().toString(36).slice(2, 6)}`;
   };
 
+  const sanitizeUsername = (val: string) =>
+    val.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 24);
+
+  useEffect(() => {
+    if (!nameChangedRef.current) {
+      setUsername(generateUsername(name));
+    }
+  }, [name]);
+
+  useEffect(() => {
+    if (checkTimeoutRef.current) clearTimeout(checkTimeoutRef.current);
+    if (!username || username.length < 3) {
+      setUsernameAvailable(null);
+      return;
+    }
+    setCheckingUsername(true);
+    checkTimeoutRef.current = setTimeout(async () => {
+      const available = await checkUsername(username);
+      setUsernameAvailable(available);
+      setCheckingUsername(false);
+    }, 400);
+    return () => { if (checkTimeoutRef.current) clearTimeout(checkTimeoutRef.current); };
+  }, [username]);
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (!name.trim()) {
       setError("Please enter your name.");
+      return;
+    }
+
+    if (!username.trim()) {
+      setError("Please enter a username.");
+      return;
+    }
+
+    if (usernameAvailable === false) {
+      setError("Username is already taken. Try another.");
       return;
     }
 
@@ -46,13 +86,12 @@ export default function SignupPage() {
     }
 
     setLoading(true);
-    const username = generateUsername(name);
 
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { display_name: name, username },
+        data: { display_name: name.trim(), username },
       },
     });
 
@@ -66,7 +105,7 @@ export default function SignupPage() {
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: data.user.id,
         username,
-        display_name: name,
+        display_name: name.trim(),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
@@ -106,10 +145,35 @@ export default function SignupPage() {
           <Input
             placeholder="Full Name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => { setName(e.target.value); nameChangedRef.current = true; }}
             icon={<User className="h-4 w-4" />}
             required
           />
+
+          <div className="relative">
+            <Input
+              placeholder="Username"
+              value={username}
+              onChange={(e) => { setUsername(sanitizeUsername(e.target.value)); nameChangedRef.current = true; }}
+              icon={<AtSign className="h-4 w-4" />}
+              required
+            />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              {checkingUsername ? (
+                <Loader2 className="h-4 w-4 animate-spin text-text-muted" />
+              ) : usernameAvailable === true ? (
+                <CheckCircle className="h-4 w-4 text-green-400" />
+              ) : usernameAvailable === false ? (
+                <XCircle className="h-4 w-4 text-red-400" />
+              ) : null}
+            </div>
+            {usernameAvailable === false && (
+              <p className="text-xs text-red-400 mt-1">Username already taken</p>
+            )}
+            {usernameAvailable === true && (
+              <p className="text-xs text-green-400 mt-1">Username available</p>
+            )}
+          </div>
 
           <Input
             placeholder="Email"

@@ -47,6 +47,14 @@ export async function searchProfiles(query: string) {
   return data as Profile[];
 }
 
+export async function checkUsername(username: string, excludeUserId?: string) {
+  const supabase = createClient();
+  let q = supabase.from("profiles").select("id").eq("username", username);
+  if (excludeUserId) q = q.neq("id", excludeUserId);
+  const { data } = await q.maybeSingle();
+  return !data; // true = available, false = taken
+}
+
 // ===== ORBITS =====
 
 export async function getOrbits(options?: {
@@ -1075,7 +1083,7 @@ export async function getTreasureHuntLeaderboard(huntId: string) {
 
 // ===== STORAGE =====
 
-export async function uploadMedia(file: File, path: string) {
+export async function uploadToBucket(file: File, path: string): Promise<string> {
   const { initR2, isR2Configured, uploadToR2 } = await import("@/lib/storage");
   initR2();
   if (isR2Configured()) {
@@ -1090,10 +1098,18 @@ export async function uploadMedia(file: File, path: string) {
       cacheControl: "3600",
       upsert: true,
     });
-  if (error || !data) {
-    console.error("Upload failed:", error?.message);
-    throw new Error(error?.message || "Upload failed");
-  }
+  if (error || !data) throw new Error(error?.message || "Upload failed");
   const { data: url } = supabase.storage.from("orbit-media").getPublicUrl(data.path);
   return url.publicUrl;
+}
+
+export async function uploadMedia(file: File, path: string) {
+  const { compressImage, compressToThumbnail, thumbnailPath } = await import("@/lib/compress-image");
+  const [compressed, thumbFile] = await Promise.all([
+    compressImage(file),
+    compressToThumbnail(file),
+  ]);
+  const fullUrl = await uploadToBucket(compressed, path);
+  await uploadToBucket(thumbFile, thumbnailPath(path)).catch(() => {});
+  return fullUrl;
 }

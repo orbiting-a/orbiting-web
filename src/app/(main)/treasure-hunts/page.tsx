@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Card, Avatar, Button } from "@/components/ui";
+import Image from "next/image";
 import { Map, Trophy, Users, ArrowRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { getTreasureHunts } from "@/lib/supabase/queries";
@@ -45,7 +46,7 @@ export default function TreasureHuntsPage() {
               <Card hover padding="lg" className="flex items-start gap-4">
                 {hunt.cover_url ? (
                   <div className="h-16 w-16 rounded-xl overflow-hidden shrink-0">
-                    <img src={hunt.cover_url} alt="" className="w-full h-full object-cover" />
+                    <Image src={hunt.cover_url} alt="" width={64} height={64} className="w-full h-full object-cover" />
                   </div>
                 ) : (
                   <div className="h-16 w-16 rounded-xl bg-gradient-to-br from-brand-400 to-purple-500 flex items-center justify-center shrink-0">
