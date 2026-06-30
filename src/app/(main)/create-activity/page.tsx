@@ -13,6 +13,7 @@ export default function CreateActivityPage() {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
   const markerRef = useRef<any>(null);
+  const userDotRef = useRef<any>(null);
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [date, setDate] = useState("");
@@ -21,6 +22,8 @@ export default function CreateActivityPage() {
   const [orbits, setOrbits] = useState<{ id: string; name: string }[]>([]);
   const [lat, setLat] = useState(28.6139);
   const [lng, setLng] = useState(77.209);
+  const [userLat, setUserLat] = useState<number | null>(null);
+  const [userLng, setUserLng] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [mapReady, setMapReady] = useState(false);
@@ -40,6 +43,23 @@ export default function CreateActivityPage() {
     loadOrbits();
   }, [supabase]);
 
+  // Get user's current location on mount
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLat(pos.coords.latitude);
+        setUserLng(pos.coords.longitude);
+        if (!markerRef.current) {
+          setLat(pos.coords.latitude);
+          setLng(pos.coords.longitude);
+        }
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, []);
+
   // Init mini map for location picking
   useEffect(() => {
     if (mapInstance.current) return;
@@ -49,7 +69,7 @@ export default function CreateActivityPage() {
       const L = await import("leaflet");
       const m = L.map(el, {
         center: [lat, lng],
-        zoom: 5,
+        zoom: 10,
         zoomControl: false,
         attributionControl: false,
       });
@@ -71,6 +91,26 @@ export default function CreateActivityPage() {
     })();
     return () => { mapInstance.current?.remove(); mapInstance.current = null; };
   }, []);
+
+  // Add/update red dot for user's current location
+  useEffect(() => {
+    if (!mapReady || userLat === null || userLng === null) return;
+    (async () => {
+      const L = await import("leaflet");
+      if (userDotRef.current) {
+        userDotRef.current.setLatLng([userLat, userLng]);
+      } else {
+        userDotRef.current = L.circleMarker([userLat, userLng], {
+          radius: 8,
+          color: "#ef4444",
+          fillColor: "#ef4444",
+          fillOpacity: 0.4,
+          weight: 2,
+          interactive: false,
+        }).addTo(mapInstance.current);
+      }
+    })();
+  }, [mapReady, userLat, userLng]);
 
   const useMyLocation = () => {
     if (!navigator.geolocation) return;
