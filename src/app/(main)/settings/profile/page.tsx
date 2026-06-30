@@ -19,6 +19,8 @@ export default function EditProfilePage() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [saveError, setSaveError] = useState("");
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
     getCurrentUser().then(async (user) => {
@@ -44,23 +46,36 @@ export default function EditProfilePage() {
   const handleSave = async () => {
     if (!profile) return;
     setSaving(true);
-    let avatar_url = profile.avatar_url;
+    setSaveError("");
+    setSaveSuccess(false);
 
-    if (avatarFile) {
-      const path = `avatars/${profile.id}/${Date.now()}-${avatarFile.name}`;
-      const url = await uploadMedia(avatarFile, path);
-      if (url) avatar_url = url;
+    try {
+      let avatar_url = profile.avatar_url;
+
+      if (avatarFile) {
+        const path = `avatars/${profile.id}/${Date.now()}-${avatarFile.name}`;
+        const url = await uploadMedia(avatarFile, path);
+        if (url) avatar_url = url;
+      }
+
+      const result = await updateProfile(profile.id, {
+        display_name: displayName.trim() || null,
+        username: username.trim(),
+        bio: bio.trim() || null,
+        avatar_url,
+      });
+
+      if (result) {
+        setSaveSuccess(true);
+        setTimeout(() => router.push("/settings"), 1000);
+      } else {
+        setSaveError("Failed to save profile. Try again.");
+      }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSaving(false);
     }
-
-    await updateProfile(profile.id, {
-      display_name: displayName.trim() || null,
-      username: username.trim(),
-      bio: bio.trim() || null,
-      avatar_url,
-    });
-
-    setSaving(false);
-    router.push("/settings");
   };
 
   if (loading) {
@@ -97,6 +112,9 @@ export default function EditProfilePage() {
             <Wand2 className="h-3.5 w-3.5" /> Create Avatar
           </Link>
         </div>
+
+        {saveError && <p className="text-sm text-red-400 bg-red-500/10 rounded-xl p-3">{saveError}</p>}
+        {saveSuccess && <p className="text-sm text-green-400 bg-green-500/10 rounded-xl p-3">Profile saved! Redirecting...</p>}
 
         <Input label="Display Name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your display name" />
         <Input label="Username" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))} placeholder="username" />

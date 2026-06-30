@@ -28,12 +28,13 @@ export async function updateProfile(
   updates: Partial<Pick<Profile, "display_name" | "bio" | "avatar_url" | "username" | "location">>
 ) {
   const supabase = createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("profiles")
     .update(updates)
     .eq("id", userId)
     .select()
     .single();
+  if (error) throw new Error(error.message);
   return data as Profile | null;
 }
 
@@ -742,8 +743,9 @@ export function subscribeToNotifications(
   onNotification: (n: Notification) => void
 ) {
   const supabase = createClient();
+  const channelName = `notifications-${crypto.randomUUID()}`;
   return supabase
-    .channel("notifications")
+    .channel(channelName)
     .on(
       "postgres_changes",
       { event: "INSERT", schema: "public", table: "notifications" },

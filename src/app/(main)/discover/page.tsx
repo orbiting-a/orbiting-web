@@ -36,15 +36,15 @@ export default function DiscoverPage() {
   const load = useCallback(async (category: string, searchQuery: string) => {
     setLoading(true);
     if (searchQuery.trim()) {
-      const results = await searchOrbits(searchQuery);
+      const results = (await searchOrbits(searchQuery)) ?? [];
       setOrbits(results);
       setHasMore(false);
     } else {
-      const data = await getOrbits({
+      const data = (await getOrbits({
         category: category === "All" ? undefined : category,
         limit: PAGE_SIZE,
         offset: 0,
-      });
+      })) ?? [];
       setOrbits(data);
       setHasMore(data.length === PAGE_SIZE);
     }
@@ -54,15 +54,15 @@ export default function DiscoverPage() {
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore || search.trim()) return;
     setLoadingMore(true);
-    const data = await getOrbits({
+    const data = (await getOrbits({
       category: activeCategory === "All" ? undefined : activeCategory,
       limit: PAGE_SIZE,
-      offset: orbits.length,
-    });
+      offset: orbits?.length ?? 0,
+    })) ?? [];
     if (data.length < PAGE_SIZE) setHasMore(false);
-    setOrbits((prev) => [...prev, ...data]);
+    setOrbits((prev) => [...(prev ?? []), ...data]);
     setLoadingMore(false);
-  }, [loadingMore, hasMore, search, activeCategory, orbits.length]);
+  }, [loadingMore, hasMore, search, activeCategory, orbits?.length ?? 0]);
 
   useEffect(() => {
     load(activeCategory, search);
