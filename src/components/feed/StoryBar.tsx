@@ -11,20 +11,20 @@ import type { Story, Profile } from "@/types/database";
 
 export function StoryBar() {
   const [stories, setStories] = useState<(Story & { profiles: Profile })[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     getStories().then((data) => setStories(data as (Story & { profiles: Profile })[]));
-    getCurrentUser().then((u) => setCurrentUserId(u?.id || null));
   }, []);
 
   const handleCreateStory = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    const path = `stories/${currentUserId}/${Date.now()}-${file.name}`;
+    const user = await getCurrentUser();
+    if (!user) { toast.error("Not authenticated"); setUploading(false); return; }
+    const path = `stories/${user.id}/${Date.now()}-${file.name}`;
     try {
       const url = await uploadMedia(file, path);
       await createStory(url);

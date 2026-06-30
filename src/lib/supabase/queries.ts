@@ -106,9 +106,21 @@ export async function createOrbit(orbit: {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
+  // Find a unique slug if the base slug is taken
+  let slug = orbit.slug;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const { data: existing } = await supabase
+      .from("orbits")
+      .select("id")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (!existing) break;
+    slug = `${orbit.slug}-${Math.random().toString(36).slice(2, 6)}`;
+  }
+
   const { data } = await supabase
     .from("orbits")
-    .insert({ ...orbit, created_by: user.id })
+    .insert({ ...orbit, slug, created_by: user.id })
     .select()
     .single();
 

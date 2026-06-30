@@ -94,7 +94,7 @@ export default function EditProfilePage() {
         avatar_url,
       });
 
-      refreshUser();
+      await refreshUser();
       setSaveSuccess(true);
       setTimeout(() => router.push("/settings"), 1000);
     } catch (err) {
