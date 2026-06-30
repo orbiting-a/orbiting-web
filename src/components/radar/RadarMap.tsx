@@ -67,6 +67,12 @@ export function RadarMap({
     };
   }, []);
 
+  // Re-center when position changes
+  useEffect(() => {
+    if (!mapInstance.current || !ready) return;
+    mapInstance.current.setView(center, mapInstance.current.getZoom() || 10);
+  }, [center[0], center[1], ready]);
+
   // Update overlays (markers + circle)
   useEffect(() => {
     if (!mapInstance.current || !ready) return;

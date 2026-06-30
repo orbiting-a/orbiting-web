@@ -6,6 +6,7 @@ import { Card, Input, Textarea, Button, Avatar } from "@/components/ui";
 import { ArrowLeft, Save, Upload, Wand2 } from "lucide-react";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/client";
 import { getProfile, updateProfile, uploadMedia } from "@/lib/supabase/queries";
 import type { Profile } from "@/types/database";
 
@@ -44,21 +45,29 @@ export default function EditProfilePage() {
   };
 
   const handleSave = async () => {
-    if (!profile) return;
     setSaving(true);
     setSaveError("");
     setSaveSuccess(false);
 
     try {
-      let avatar_url = profile.avatar_url;
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Not authenticated");
+
+      let p = profile;
+      if (!p) {
+        const supabase = createClient();
+        p = { id: user.id, username: username.trim(), display_name: displayName.trim() || null, bio: bio.trim() || null, avatar_url: null, phone: null, location: null, interests: [], is_verified: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() } as Profile;
+      }
+
+      let avatar_url = p.avatar_url;
 
       if (avatarFile) {
-        const path = `avatars/${profile.id}/${Date.now()}-${avatarFile.name}`;
+        const path = `avatars/${p.id}/${Date.now()}-${avatarFile.name}`;
         const url = await uploadMedia(avatarFile, path);
         if (url) avatar_url = url;
       }
 
-      const result = await updateProfile(profile.id, {
+      const result = await updateProfile(p.id, {
         display_name: displayName.trim() || null,
         username: username.trim(),
         bio: bio.trim() || null,

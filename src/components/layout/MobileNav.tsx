@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, MessageCircle, Radio, Plus, X, Wallet, Compass, Sparkles, MapPin } from "lucide-react";
+import { Home, MessageCircle, Radar, Plus, X, Wallet, Compass, Sparkles, MapPin } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function MobileNav() {
@@ -15,7 +15,7 @@ export function MobileNav() {
   const toggleMenu = () => setIsOpen(!isOpen);
 
   const items = [
-    { href: "/radar", label: "Radar", icon: Radio },
+    { href: "/radar", label: "Radar", icon: Radar },
     { href: "/discover", label: "Discover", icon: Compass },
     { href: "satellite", label: "Chakra", icon: Sparkles, isCenter: true },
     { href: "/chat", label: "Chat", icon: MessageCircle },

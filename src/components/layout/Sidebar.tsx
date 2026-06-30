@@ -13,7 +13,7 @@ import {
   User,
   Settings,
   Search,
-  Radio,
+  Radar,
   Wallet,
   Shield,
   Map,
@@ -24,7 +24,7 @@ import {
 const navItems = [
   { href: "/feed", label: "Feed", icon: Home },
   { href: "/discover", label: "Discover", icon: Compass },
-  { href: "/radar", label: "Radar", icon: Radio },
+  { href: "/radar", label: "Radar", icon: Radar },
   { href: "/chat", label: "Chat", icon: MessageCircle },
   { href: "/reels", label: "Reels", icon: Play },
   { href: "/treasure-hunts", label: "Hunts", icon: Map },
