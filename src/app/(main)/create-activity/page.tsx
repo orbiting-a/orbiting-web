@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Input, Textarea, Button } from "@/components/ui";
+import { LocationSearch } from "@/components/ui/LocationSearch";
+import type { LocationResult } from "@/components/ui/LocationSearch";
 import { Calendar, MapPin, Navigation, Orbit as OrbitIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Channel } from "@/types/database";
@@ -22,6 +24,7 @@ export default function CreateActivityPage() {
   const [orbits, setOrbits] = useState<{ id: string; name: string }[]>([]);
   const [lat, setLat] = useState(28.6139);
   const [lng, setLng] = useState(77.209);
+  const [location, setLocation] = useState<LocationResult | null>(null);
   const [userLat, setUserLat] = useState<number | null>(null);
   const [userLng, setUserLng] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -60,6 +63,15 @@ export default function CreateActivityPage() {
     );
   }, []);
 
+  // Sync location search selection with map marker
+  useEffect(() => {
+    if (!location || !markerRef.current || !mapInstance.current) return;
+    setLat(location.lat);
+    setLng(location.lng);
+    markerRef.current.setLatLng([location.lat, location.lng]);
+    mapInstance.current.setView([location.lat, location.lng], 12);
+  }, [location]);
+
   // Init mini map for location picking
   useEffect(() => {
     if (mapInstance.current) return;
@@ -79,11 +91,13 @@ export default function CreateActivityPage() {
         const pos = marker.getLatLng();
         setLat(pos.lat);
         setLng(pos.lng);
+        setLocation(null);
       });
       m.on("click", (e: { latlng: { lat: number; lng: number } }) => {
         marker.setLatLng(e.latlng);
         setLat(e.latlng.lat);
         setLng(e.latlng.lng);
+        setLocation(null);
       });
       mapInstance.current = m;
       markerRef.current = marker;
@@ -200,6 +214,13 @@ export default function CreateActivityPage() {
             icon={<Calendar className="h-4 w-4" />}
             required
           />
+
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1.5">
+              Location
+            </label>
+            <LocationSearch value={location} onChange={setLocation} placeholder="Search for a place..." />
+          </div>
 
           <Input
             label="Location Name"

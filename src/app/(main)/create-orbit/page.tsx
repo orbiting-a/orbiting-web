@@ -2,6 +2,8 @@
 
 import { useState, useRef } from "react";
 import { Card, Button, Input, Textarea } from "@/components/ui";
+import { LocationSearch } from "@/components/ui/LocationSearch";
+import type { LocationResult } from "@/components/ui/LocationSearch";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Globe, Lock, ArrowLeft, Image as ImageIcon, MapPin, Plus, X, Link2 } from "lucide-react";
@@ -38,11 +40,7 @@ export default function CreateOrbitPage() {
 
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState("");
-
-  const [lat, setLat] = useState("");
-  const [lng, setLng] = useState("");
-  const [city, setCity] = useState("");
-  const [country, setCountry] = useState("");
+  const [location, setLocation] = useState<LocationResult | null>(null);
 
   const [socialLinks, setSocialLinks] = useState<{ platform: string; url: string }[]>([]);
 
@@ -112,7 +110,7 @@ export default function CreateOrbitPage() {
         coverUrl = await uploadMedia(coverFile, path) || undefined;
       }
 
-      const location = lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng), city, country } : undefined;
+      const loc = location ? { lat: location.lat, lng: location.lng, city: location.city, country: location.country } : undefined;
 
       const socialLinksObj = socialLinks
         .filter((s) => s.platform && s.url)
@@ -128,7 +126,7 @@ export default function CreateOrbitPage() {
         logo_url: logoUrl,
         cover_url: coverUrl,
         tags: selectedTags.length > 0 ? selectedTags : undefined,
-        location,
+        location: loc,
         social_links: Object.keys(socialLinksObj).length > 0 ? socialLinksObj : undefined,
       });
 
@@ -269,19 +267,7 @@ export default function CreateOrbitPage() {
 
           <div>
             <label className="block text-sm font-medium text-text-primary mb-1.5">Location</label>
-            <div className="grid grid-cols-2 gap-2">
-              <Input value={lat} onChange={(e) => setLat(e.target.value)} placeholder="Latitude" type="number" step="any" />
-              <Input value={lng} onChange={(e) => setLng(e.target.value)} placeholder="Longitude" type="number" step="any" />
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="City" />
-              <Input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Country" />
-            </div>
-            {(lat || lng) && (
-              <div className="flex items-center gap-2 mt-2 text-xs text-brand-400">
-                <MapPin className="h-3 w-3" /> Location set
-              </div>
-            )}
+            <LocationSearch value={location} onChange={setLocation} placeholder="Search for a city or place..." />
           </div>
 
           <div>
