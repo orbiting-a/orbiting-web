@@ -647,14 +647,31 @@ export async function createDMChannel(targetUserId: string) {
   });
   if (existing) return existing as Channel;
 
-  const { data: channel } = await supabase
+  // Create channel
+  const { data: created } = await supabase
     .from("channels")
     .insert({ type: "dm", created_by: user.id })
     .select()
     .single();
 
-  if (!channel) throw new Error("Failed to create channel");
+  let channel = created as Channel | null;
 
+  // If .select() returned null (RLS), fetch it by created_by as fallback
+  if (!channel) {
+    const { data: fallback } = await supabase
+      .from("channels")
+      .select("*")
+      .eq("created_by", user.id)
+      .eq("type", "dm")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    channel = fallback as Channel | null;
+  }
+
+  if (!channel?.id) throw new Error("Failed to create channel");
+
+  // Insert members
   const { error: memberError } = await supabase.from("channel_members").insert([
     { channel_id: channel.id, user_id: user.id },
     { channel_id: channel.id, user_id: targetUserId },
