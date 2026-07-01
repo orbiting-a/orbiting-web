@@ -883,6 +883,18 @@ export function subscribeToCallStatus(callId: string, onUpdate: (status: string)
   return { unsubscribe: () => { void channel.unsubscribe(); } };
 }
 
+export async function getActiveCall(channelId: string, calleeId: string) {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("calls")
+    .select("*")
+    .eq("channel_id", channelId)
+    .eq("callee_id", calleeId)
+    .eq("status", "ringing")
+    .maybeSingle();
+  return data as { id: string; caller_id: string; type: "audio" | "video" } | null;
+}
+
 export async function getUnreadCounts() {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();

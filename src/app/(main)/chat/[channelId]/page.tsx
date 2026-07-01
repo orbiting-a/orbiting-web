@@ -20,6 +20,7 @@ import {
   subscribeToMessages,
   subscribeToMessageUpdates,
   subscribeToCalls,
+  getActiveCall,
   deleteMessage,
   deleteMessageForEveryone,
   leaveChannel,
@@ -183,19 +184,28 @@ export default function ChannelPage({
   useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
 
   useEffect(() => {
-    if (!channelId || channelId === "undefined") return;
-    const sub = subscribeToCalls(channelId, (call) => {
-      // Skip if not for us, already in a call, already showing incoming, or already seen this call
-      if (call.callee_id !== currentUserId) return;
+    if (!channelId || channelId === "undefined" || !currentUserId) return;
+
+    const showCall = (call: { id: string; caller_id: string; type: string }) => {
       if (call.type !== "audio" && call.type !== "video") return;
       if (callActiveRef.current) return;
       if (incomingCallRef.current) return;
       if (seenCallIdsRef.current.has(call.id)) return;
-
       seenCallIdsRef.current.add(call.id);
       const caller = membersRef.current.find((m) => m.id === call.caller_id);
       const callerName = caller?.display_name || caller?.username || "Someone";
-      setIncomingCall({ type: call.type, callId: call.id, callerId: call.caller_id, callerName });
+      setIncomingCall({ type: call.type as "audio" | "video", callId: call.id, callerId: call.caller_id, callerName });
+    };
+
+    // Check for existing ringing calls (missed by postgres_changes if userId wasn't ready)
+    getActiveCall(channelId, currentUserId).then((call) => {
+      if (call) showCall(call);
+    });
+
+    // Subscribe to new calls
+    const sub = subscribeToCalls(channelId, (call) => {
+      if (call.callee_id !== currentUserId) return;
+      showCall(call);
     });
     return () => { sub.unsubscribe(); };
   }, [channelId, currentUserId]);
