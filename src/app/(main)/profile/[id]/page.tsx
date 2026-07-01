@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { getProfile, getFollowers, getFollowing, getUserOrbits, getUserPosts, toggleFollow, isFollowing, createDMChannel } from "@/lib/supabase/queries";
+import { toast } from "sonner";
 import { getCurrentUser } from "@/lib/auth";
 import { PostCard } from "@/components/feed/PostCard";
 import type { Profile, Orbit, Post } from "@/types/database";
@@ -93,7 +94,7 @@ export default function ProfilePage({
       const channel = await createDMChannel(profile.id);
       if (channel) router.push(`/chat/${channel.id}`);
     } catch (e) {
-      console.error("Failed to create DM:", e);
+      toast.error(e instanceof Error ? e.message : "Failed to start chat");
     }
   };
 
