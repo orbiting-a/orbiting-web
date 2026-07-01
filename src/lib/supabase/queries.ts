@@ -1198,15 +1198,37 @@ function haversineDistance(
 
 export async function getNearbyOrbits(lat: number, lng: number, radiusKm: number) {
   const supabase = createClient();
-  const { data } = await supabase
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Fetch public orbits with locations
+  const { data: publicOrbits } = await supabase
     .from("orbits")
     .select("id, name, slug, logo_url, description, member_count, category, location, is_private")
     .not("location", "is", null)
     .eq("is_private", false)
     .limit(50);
 
-  if (!data) return [];
-  return data.filter((o) => {
+  let allOrbits = publicOrbits || [];
+
+  // Also fetch orbits the user is a member of (including private ones with locations)
+  if (user?.id) {
+    const { data: memberOrbits } = await supabase
+      .from("orbit_members")
+      .select("orbits!inner(id, name, slug, logo_url, description, member_count, category, location, is_private)")
+      .eq("user_id", user.id)
+      .not("orbits.location", "is", null);
+
+    if (memberOrbits) {
+      for (const d of memberOrbits) {
+        const o = (d as { orbits: Record<string, unknown> }).orbits;
+        if (o && !allOrbits.some((ao) => ao.id === (o as { id: string }).id)) {
+          allOrbits.push(o as typeof allOrbits[number]);
+        }
+      }
+    }
+  }
+
+  return allOrbits.filter((o) => {
     const loc = o.location as { lat?: number; lng?: number } | null;
     if (!loc?.lat || !loc?.lng) return false;
     return haversineDistance(lat, lng, loc.lat, loc.lng) <= radiusKm;

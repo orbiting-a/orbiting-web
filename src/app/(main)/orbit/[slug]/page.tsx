@@ -272,12 +272,12 @@ export default function OrbitPage({
         </div>
       </Card>
 
-      <div className="flex border-b border-border mb-6">
+      <div className="flex border-b border-border mb-6 overflow-x-auto whitespace-nowrap no-scrollbar">
         {["Feed", "About", "Members", "Events", "Challenges", ...adminTabs].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            className={`shrink-0 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               activeTab === tab
                 ? "border-brand-400 text-brand-400"
                 : "border-transparent text-text-muted hover:text-text-secondary"

@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { OrbitCard } from "@/components/orbit/OrbitCard";
 import { Skeleton } from "@/components/ui";
-import { getOrbits, searchOrbits } from "@/lib/supabase/queries";
-import { Search, Compass, Loader2 } from "lucide-react";
+import { getOrbits, searchOrbits, getUserOrbits, getCurrentUserProfile } from "@/lib/supabase/queries";
+import { Search, Compass, Loader2, Users } from "lucide-react";
 import Link from "next/link";
 import type { Orbit } from "@/types/database";
 
@@ -26,6 +26,7 @@ const PAGE_SIZE = 12;
 
 export default function DiscoverPage() {
   const [orbits, setOrbits] = useState<Orbit[]>([]);
+  const [myOrbits, setMyOrbits] = useState<Orbit[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -67,6 +68,16 @@ export default function DiscoverPage() {
   useEffect(() => {
     load(activeCategory, search);
   }, [search, activeCategory, load]);
+
+  useEffect(() => {
+    getCurrentUserProfile().then((profile) => {
+      if (profile) {
+        getUserOrbits(profile.id).then((orbits) => {
+          if (orbits) setMyOrbits(orbits);
+        });
+      }
+    });
+  }, []);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -121,6 +132,25 @@ export default function DiscoverPage() {
         ))}
       </div>
 
+      {/* My Orbits */}
+      {myOrbits.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-text-secondary flex items-center gap-2 mb-3">
+            <Users className="h-4 w-4" /> Your Orbits
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 stagger-children">
+            {myOrbits.map((orbit) => (
+              <OrbitCard key={orbit.id} orbit={orbit} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Discovered Orbits */}
+      <h2 className="text-sm font-semibold text-text-secondary flex items-center gap-2 mb-3">
+        <Compass className="h-4 w-4" /> Discover
+      </h2>
+
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[1, 2, 3, 4].map((i) => (
@@ -138,23 +168,20 @@ export default function DiscoverPage() {
           ))}
         </div>
       ) : orbits.length === 0 ? (
-        <div className="flex flex-col items-center py-16 text-center">
-          <div className="h-16 w-16 rounded-full bg-brand-400/10 flex items-center justify-center mb-4">
-            <Compass className="h-8 w-8 text-brand-400" />
+        <div className="flex flex-col items-center py-10 text-center">
+          <div className="h-12 w-12 rounded-full bg-brand-400/10 flex items-center justify-center mb-3">
+            <Compass className="h-6 w-6 text-brand-400" />
           </div>
-          <h3 className="font-bold text-text-primary mb-1">
-            {search ? "No orbits found" : "No orbits yet"}
+          <h3 className="font-semibold text-text-primary mb-1">
+            {search ? "No orbits found" : "No public orbits nearby"}
           </h3>
-          <p className="text-sm text-text-muted mb-4">
-            {search
-              ? `No results for "${search}"`
-              : "Be the first to create an orbit!"}
-          </p>
-          <Link href="/create-orbit">
-            <span className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-500 text-white rounded-xl text-sm font-medium hover:bg-brand-600 transition-colors">
-              Create Your First Orbit
-            </span>
-          </Link>
+          {!search && (
+            <Link href="/create-orbit">
+              <span className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-xl text-sm font-medium hover:bg-brand-600 transition-colors mt-2">
+                Create an Orbit
+              </span>
+            </Link>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 stagger-children">
