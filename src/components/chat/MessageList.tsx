@@ -126,6 +126,20 @@ function MediaImage({ src, className, onError, onClick }: {
   return <img src={cachedSrc} alt="Shared image" className={className} onError={onError} onClick={onClick} />;
 }
 
+function MediaAudio({ src, controls, preload, className, style }: {
+  src: string; controls: boolean; preload: string; className?: string; style?: React.CSSProperties;
+}) {
+  const cachedSrc = useCachedMediaUrl(src);
+  return <audio src={cachedSrc} controls={controls} preload={preload} className={className} style={style} />;
+}
+
+function MediaVideo({ src, controls, preload, className }: {
+  src: string; controls: boolean; preload: string; className?: string;
+}) {
+  const cachedSrc = useCachedMediaUrl(src);
+  return <video src={cachedSrc} controls={controls} preload={preload} className={className} />;
+}
+
 function MessageBubble({ msg, isOwn, onDelete, onDeleteForEveryone, showReadReceipt }: {
   msg: Message & { profiles: Profile };
   isOwn: boolean;
@@ -196,9 +210,8 @@ function MessageBubble({ msg, isOwn, onDelete, onDeleteForEveryone, showReadRece
                   </div>
                 ) : isVideoUrl(msg.media_url) ? (
                   <div className="relative">
-                    <video src={msg.media_url} controls preload="metadata"
-                      className={cn("max-w-full rounded-t-2xl max-h-64", msg.content && "rounded-b-none")}>
-                    </video>
+                    <MediaVideo src={msg.media_url} controls preload="metadata"
+                      className={cn("max-w-full rounded-t-2xl max-h-64", msg.content && "rounded-b-none")} />
                     <button onClick={() => downloadAndCache(msg.media_url!)}
                       className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/40 text-white opacity-80 hover:opacity-100 transition-opacity"
                       title="Download">
@@ -207,7 +220,8 @@ function MessageBubble({ msg, isOwn, onDelete, onDeleteForEveryone, showReadRece
                   </div>
                 ) : isAudioUrl(msg.media_url) ? (
                   <div className="p-2 flex items-center gap-2">
-                    <audio src={msg.media_url} controls preload="none" className="h-10 flex-1 min-w-0" style={{ maxWidth: "200px" }} />
+                    <MediaAudio src={msg.media_url} controls preload="none"
+                      className="h-10 flex-1 min-w-0" style={{ maxWidth: "200px" }} />
                     <button onClick={() => downloadAndCache(msg.media_url!)}
                       className={cn("p-2 rounded-lg hover:bg-black/10 transition-colors shrink-0",
                         isOwn ? "hover:bg-brand-600" : "")}

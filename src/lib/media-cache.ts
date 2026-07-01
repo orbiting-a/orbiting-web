@@ -75,13 +75,7 @@ const blobUrlCache = new Map<string, string>();
 
 export async function getMediaUrl(url: string): Promise<string> {
   const existing = blobUrlCache.get(url);
-  if (existing) {
-    try {
-      const resp = await fetch(existing, { method: "HEAD" });
-      if (resp.ok) return existing;
-    } catch {}
-    blobUrlCache.delete(url);
-  }
+  if (existing) return existing;
   const blob = await getCachedMedia(url);
   if (blob) {
     const blobUrl = URL.createObjectURL(blob);
@@ -92,13 +86,6 @@ export async function getMediaUrl(url: string): Promise<string> {
 }
 
 export function downloadAndCache(url: string) {
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = url.split("/").pop()?.split("?")[0] || "file";
-  a.target = "_blank";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
   fetch(url)
     .then((r) => r.blob())
     .then((blob) => cacheMedia(url, blob))
