@@ -595,7 +595,8 @@ export async function getMyChannels() {
 
 export async function getChannel(id: string) {
   const supabase = createClient();
-  const { data } = await supabase.from("channels").select("*").eq("id", id).single();
+  const { data, error } = await supabase.from("channels").select("*").eq("id", id).maybeSingle();
+  if (error) return null;
   return data as Channel | null;
 }
 

@@ -40,27 +40,29 @@ export default function ChannelPage({
   }, [channelId, router]);
 
   useEffect(() => {
-    if (!channelId || channelId === "undefined") return;
+    if (!channelId || channelId === "undefined") {
+      router.replace("/chat");
+      return;
+    }
     async function load() {
+      const ch = await getChannel(channelId);
+      if (!ch) {
+        setLoading(false);
+        return;
+      }
+      setChannel(ch);
+
       try {
-        const [ch, msgs, mems] = await Promise.all([
-          getChannel(channelId),
+        const [msgs, mems] = await Promise.all([
           getMessages(channelId),
           getChannelMembers(channelId),
         ]);
-        if (!ch) {
-          toast.error("Conversation not found");
-          router.replace("/chat");
-          return;
-        }
-        setChannel(ch);
         setMessages(msgs);
         setMembers(mems);
       } catch {
-        toast.error("Failed to load conversation");
-        router.replace("/chat");
-        return;
+        // non-fatal
       }
+
       setLoading(false);
     }
     load();
