@@ -731,6 +731,56 @@ export async function deleteMessage(messageId: string) {
   if (error) throw error;
 }
 
+export async function deleteMessageForEveryone(messageId: string) {
+  const res = await fetch("/api/chat/delete-message", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messageId }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to delete message");
+  }
+}
+
+export async function markChannelRead(channelId: string) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase
+    .from("channel_members")
+    .update({ last_read_at: new Date().toISOString() })
+    .eq("channel_id", channelId)
+    .eq("user_id", user.id);
+}
+
+export async function getUnreadCounts() {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data } = await supabase
+    .from("channel_members")
+    .select("channel_id, last_read_at")
+    .eq("user_id", user.id);
+  if (!data) return [];
+  const result: { channel_id: string; count: number }[] = [];
+  for (const row of data) {
+    let query = supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("channel_id", row.channel_id)
+      .neq("sender_id", user.id);
+    if (row.last_read_at) {
+      query = query.gt("created_at", row.last_read_at);
+    }
+    const { count } = await query;
+    if (count && count > 0) {
+      result.push({ channel_id: row.channel_id, count });
+    }
+  }
+  return result;
+}
+
 export async function leaveChannel(channelId: string) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();

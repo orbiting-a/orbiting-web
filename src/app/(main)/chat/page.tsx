@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { ChatList } from "@/components/chat/ChatList";
-import { MessageCircle, Search, ArrowRight, Plus } from "lucide-react";
+import { ChatNotifications } from "@/components/chat/ChatNotifications";
+import { MessageCircle, Search, ArrowRight, Plus, Bell, MessageSquare } from "lucide-react";
 import { Avatar, Button } from "@/components/ui";
 import { getCurrentUser } from "@/lib/auth";
 import { createDMChannel, searchProfiles, createGroupChannel } from "@/lib/supabase/queries";
@@ -22,6 +23,7 @@ export default function ChatPage() {
   const [memberSearch, setMemberSearch] = useState("");
   const [memberResults, setMemberResults] = useState<Profile[]>([]);
   const [creatingGroup, setCreatingGroup] = useState(false);
+  const [chatTab, setChatTab] = useState<"chats" | "notifications">("chats");
 
   useEffect(() => {
     if (search.trim().length < 2) {
@@ -105,6 +107,7 @@ export default function ChatPage() {
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
       <div className="w-full lg:w-80 border-r border-border flex flex-col">
+        {/* Header */}
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between mb-3">
             <h1 className="text-lg font-bold text-text-primary">Chat</h1>
@@ -116,6 +119,33 @@ export default function ChatPage() {
               <Plus className="h-5 w-5" />
             </button>
           </div>
+
+          {/* Tabs */}
+          <div className="flex gap-1 mb-3 bg-surface-raised rounded-xl p-1">
+            <button
+              onClick={() => setChatTab("chats")}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                chatTab === "chats"
+                  ? "bg-surface shadow-sm text-text-primary"
+                  : "text-text-muted hover:text-text-primary"
+              }`}
+            >
+              <MessageSquare className="h-4 w-4" />
+              Chats
+            </button>
+            <button
+              onClick={() => setChatTab("notifications")}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                chatTab === "notifications"
+                  ? "bg-surface shadow-sm text-text-primary"
+                  : "text-text-muted hover:text-text-primary"
+              }`}
+            >
+              <Bell className="h-4 w-4" />
+              Notifs
+            </button>
+          </div>
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
             <input
@@ -128,6 +158,7 @@ export default function ChatPage() {
           </div>
         </div>
 
+        {/* Search results */}
         {search.trim().length >= 2 && (
           <div className="max-h-60 overflow-y-auto border-b border-border">
             {searchResults.length === 0 ? (
@@ -154,24 +185,30 @@ export default function ChatPage() {
           </div>
         )}
 
-        <div className="flex gap-2 px-4 pt-3 pb-1">
-          {["All", "DMs", "Groups"].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setFilter(tab)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                filter === tab
-                  ? "bg-brand-500 text-white"
-                  : "bg-surface-raised text-text-secondary border border-border-subtle hover:text-text-primary"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
+        {/* Content */}
         <div className="flex-1 overflow-y-auto">
-          <ChatList filter={filter} />
+          {chatTab === "chats" ? (
+            <>
+              <div className="flex gap-2 px-4 pt-3 pb-1">
+                {["All", "DMs", "Groups"].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setFilter(tab)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                      filter === tab
+                        ? "bg-brand-500 text-white"
+                        : "bg-surface-raised text-text-secondary border border-border-subtle hover:text-text-primary"
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+              <ChatList filter={filter} />
+            </>
+          ) : (
+            <ChatNotifications />
+          )}
         </div>
       </div>
 

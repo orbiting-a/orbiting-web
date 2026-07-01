@@ -15,6 +15,8 @@ import {
   sendFileMessage,
   subscribeToMessages,
   deleteMessage,
+  deleteMessageForEveryone,
+  markChannelRead,
   leaveChannel,
 } from "@/lib/supabase/queries";
 import { getCurrentUser } from "@/lib/auth";
@@ -79,6 +81,12 @@ export default function ChannelPage({
     return () => { void sub.unsubscribe(); };
   }, [channelId]);
 
+  useEffect(() => {
+    if (!channelId || channelId === "undefined" || !currentUserId) return;
+    const timer = setTimeout(() => markChannelRead(channelId), 500);
+    return () => clearTimeout(timer);
+  }, [channelId, currentUserId, messages]);
+
   const handleSend = useCallback(
     async (content: string) => {
       try {
@@ -101,6 +109,16 @@ export default function ChannelPage({
       setMessages((prev) => prev.filter((m) => m.id !== messageId));
     } catch {
       toast.error("Failed to delete message");
+    }
+  }, []);
+
+  const handleDeleteForEveryone = useCallback(async (messageId: string) => {
+    try {
+      await deleteMessageForEveryone(messageId);
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+      toast.success("Message deleted for everyone");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete message");
     }
   }, []);
 
@@ -231,6 +249,7 @@ export default function ChannelPage({
         currentUserId={currentUserId}
         loading={loading}
         onDelete={handleDeleteMessage}
+        onDeleteForEveryone={handleDeleteForEveryone}
       />
 
       {/* Input */}

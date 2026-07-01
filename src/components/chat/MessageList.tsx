@@ -2,7 +2,9 @@
 
 import { Avatar } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import { MessageCircle, Trash2, File, Download } from "lucide-react";
+import {
+  MessageCircle, Trash2, File, Download, Check, CheckCheck, MoreVertical
+} from "lucide-react";
 import type { Message, Profile } from "@/types/database";
 import { useEffect, useRef, useState } from "react";
 
@@ -11,11 +13,13 @@ export function MessageList({
   currentUserId,
   loading,
   onDelete,
+  onDeleteForEveryone,
 }: {
   messages: (Message & { profiles: Profile })[];
   currentUserId?: string;
   loading: boolean;
   onDelete?: (messageId: string) => void;
+  onDeleteForEveryone?: (messageId: string) => void;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -58,14 +62,17 @@ export function MessageList({
 
   return (
     <div className="flex-1 p-4 space-y-3 overflow-y-auto">
-      {messages.map((msg) => {
+      {messages.map((msg, idx) => {
         const isOwn = msg.sender_id === currentUserId;
+        const showReadReceipt = isOwn && idx === messages.length - 1;
         return (
           <MessageBubble
             key={msg.id}
             msg={msg}
             isOwn={isOwn}
             onDelete={onDelete}
+            onDeleteForEveryone={onDeleteForEveryone}
+            showReadReceipt={showReadReceipt}
           />
         );
       })}
@@ -78,17 +85,47 @@ function isImageUrl(url: string) {
   return /\.(jpg|jpeg|png|gif|webp|avif|svg|bmp)(\?.*)?$/i.test(url) || url.includes("image");
 }
 
+function formatTime(date: string) {
+  const d = new Date(date);
+  const now = new Date();
+  const diff = now.getTime() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  return d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatDate(date: string) {
+  const d = new Date(date);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = d.toDateString() === yesterday.toDateString();
+  if (isToday) return formatTime(date);
+  if (isYesterday) return "Yesterday " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
 function MessageBubble({
   msg,
   isOwn,
   onDelete,
+  onDeleteForEveryone,
+  showReadReceipt,
 }: {
   msg: Message & { profiles: Profile };
   isOwn: boolean;
   onDelete?: (messageId: string) => void;
+  onDeleteForEveryone?: (messageId: string) => void;
+  showReadReceipt?: boolean;
 }) {
   const [showMenu, setShowMenu] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div
@@ -103,20 +140,49 @@ function MessageBubble({
           src={msg.profiles?.avatar_url}
         />
       )}
-      <div className={cn("flex flex-col relative", isOwn && "items-end")}>
-        <div className="flex items-center gap-1">
-          {isOwn && showMenu && onDelete && (
-            <button
-              onClick={() => onDelete(msg.id)}
-              className="p-1 rounded text-text-muted hover:text-red-500 hover:bg-surface-raised transition-colors"
-              title="Delete message"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+      <div className={cn("flex flex-col relative max-w-[75%]", isOwn && "items-end")}>
+        <div className="flex items-end gap-1">
+          {isOwn && showMenu && (
+            <div className="relative">
+              <button
+                onClick={() => setMenuOpen(!menuOpen)}
+                className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-surface-raised transition-colors"
+              >
+                <MoreVertical className="h-3.5 w-3.5" />
+              </button>
+              {menuOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                  <div className={cn(
+                    "absolute bottom-full mb-1 w-48 bg-surface-raised border border-border-subtle rounded-xl shadow-lg py-1 z-20",
+                    isOwn ? "right-0" : "left-0"
+                  )}>
+                    {onDelete && (
+                      <button
+                        onClick={() => { setMenuOpen(false); onDelete(msg.id); }}
+                        className="w-full flex items-center gap-3 px-4 py-2 text-sm text-text-secondary hover:bg-surface-hover transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete for me
+                      </button>
+                    )}
+                    {onDeleteForEveryone && (
+                      <button
+                        onClick={() => { setMenuOpen(false); onDeleteForEveryone(msg.id); }}
+                        className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-500 hover:bg-red-500/5 transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete for everyone
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           )}
           <div
             className={cn(
-              "px-3 py-2 rounded-2xl text-sm max-w-xs sm:max-w-sm break-words overflow-hidden",
+              "px-3 py-2 rounded-2xl text-sm break-words overflow-hidden relative",
               isOwn
                 ? "bg-brand-500 text-white rounded-br-md"
                 : "bg-surface-raised border border-border-subtle text-text-primary rounded-bl-md"
@@ -174,25 +240,19 @@ function MessageBubble({
             )}
           </div>
         </div>
-        <span className="text-[10px] text-text-muted mt-0.5 px-1">
-          {formatTime(msg.created_at)}
-        </span>
+        <div className="flex items-center gap-1 mt-0.5 px-1">
+          <span className="text-[10px] text-text-muted">{formatDate(msg.created_at)}</span>
+          {showReadReceipt && (
+            <span className="text-[10px]">
+              {msg.is_read ? (
+                <CheckCheck className="h-3 w-3 text-blue-400" />
+              ) : (
+                <Check className="h-3 w-3 text-text-muted" />
+              )}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
-}
-
-function formatTime(date: string) {
-  const d = new Date(date);
-  const now = new Date();
-  const diff = now.getTime() - d.getTime();
-  const mins = Math.floor(diff / 60000);
-
-  if (mins < 1) return "now";
-  if (mins < 60) return `${mins}m`;
-
-  return d.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
 }

@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 let r2Client: S3Client | null = null;
 let r2Bucket = "";
@@ -43,4 +43,23 @@ export async function uploadToR2(file: File, path: string): Promise<string | nul
 export async function getR2Url(path: string): Promise<string | null> {
   if (!r2Client) return null;
   return r2PublicUrl ? `${r2PublicUrl}/${path}` : null;
+}
+
+export async function deleteFromR2(path: string): Promise<void> {
+  if (!r2Client) return;
+  await r2Client.send(
+    new DeleteObjectCommand({
+      Bucket: r2Bucket,
+      Key: path,
+    })
+  );
+}
+
+export function extractR2Path(url: string): string | null {
+  if (!r2PublicUrl) return null;
+  const prefix = `${r2PublicUrl}/`;
+  if (url.startsWith(prefix)) {
+    return url.slice(prefix.length);
+  }
+  return null;
 }

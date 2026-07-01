@@ -11,6 +11,7 @@ import {
   Users,
   Globe,
   Shield,
+  Database,
   ArrowLeft,
   Loader2,
 } from "lucide-react";
@@ -20,6 +21,7 @@ const adminNav = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/orbits", label: "Orbits", icon: Globe },
   { href: "/admin/moderation", label: "Moderation", icon: Shield },
+  { href: "/admin/data", label: "Data", icon: Database },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

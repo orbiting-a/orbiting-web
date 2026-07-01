@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Avatar } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import { getMyChannels, getChannelMembers, getChannelLastMessage, leaveChannel } from "@/lib/supabase/queries";
+import { getMyChannels, getChannelMembers, getChannelLastMessage, getUnreadCounts, leaveChannel } from "@/lib/supabase/queries";
 import { getCurrentUser } from "@/lib/auth";
 import { MessageCircle, Hash, Trash2, CheckCheck } from "lucide-react";
 import Link from "next/link";
@@ -20,6 +20,7 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const pathname = usePathname();
   const router = useRouter();
 
@@ -34,16 +35,20 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
 
       const mm: Record<string, Profile[]> = {};
       const lm: Record<string, { content: string | null; created_at: string } | null> = {};
-      await Promise.all(channels.map(async (ch) => {
-        const [members, lastMsg] = await Promise.all([
-          getChannelMembers(ch.id),
-          getChannelLastMessage(ch.id),
-        ]);
-        mm[ch.id] = members;
-        lm[ch.id] = lastMsg;
-      }));
+      const [unread] = await Promise.all([
+        getUnreadCounts(),
+        Promise.all(channels.map(async (ch) => {
+          const [members, lastMsg] = await Promise.all([
+            getChannelMembers(ch.id),
+            getChannelLastMessage(ch.id),
+          ]);
+          mm[ch.id] = members;
+          lm[ch.id] = lastMsg;
+        })),
+      ]);
       setMembersMap(mm);
       setLastMsgMap(lm);
+      setUnreadCounts(Object.fromEntries(unread.map((u) => [u.channel_id, u.count])));
       setLoading(false);
     }
     load();
@@ -174,6 +179,7 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
           : ch.name || "Unnamed";
         const lastMsg = getLastMsg(ch);
         const isSelected = selected.has(ch.id);
+        const unread = unreadCounts[ch.id] || 0;
 
         if (selectMode) {
           return (
@@ -211,11 +217,18 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">{name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium truncate">{name}</p>
+                </div>
                 {lastMsg?.content && (
                   <p className="text-xs text-text-muted truncate mt-0.5">{lastMsg.content}</p>
                 )}
               </div>
+              {unread > 0 && (
+                <span className="shrink-0 h-5 min-w-[20px] flex items-center justify-center px-1 rounded-full bg-brand-500 text-[10px] font-bold text-white">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              )}
             </button>
           );
         }
@@ -243,13 +256,25 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <p className="font-medium truncate">{name}</p>
+              <div className="flex items-center gap-2">
+                <p className="font-medium truncate">{name}</p>
+              </div>
               {lastMsg?.content && (
                 <p className={cn("text-xs truncate mt-0.5", isActive ? "text-white/70" : "text-text-muted")}>
                   {lastMsg.content}
                 </p>
               )}
             </div>
+            {unread > 0 && (
+              <span className={cn(
+                "shrink-0 h-5 min-w-[20px] flex items-center justify-center px-1 rounded-full text-[10px] font-bold",
+                isActive
+                  ? "bg-white text-brand-500"
+                  : "bg-brand-500 text-white"
+              )}>
+                {unread > 99 ? "99+" : unread}
+              </span>
+            )}
           </Link>
         );
       })}
