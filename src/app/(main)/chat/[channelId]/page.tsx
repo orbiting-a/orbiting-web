@@ -4,7 +4,7 @@ import { use, useState, useEffect, useCallback } from "react";
 import { Avatar } from "@/components/ui";
 import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { ArrowLeft, Phone, Video, MoreHorizontal } from "lucide-react";
+import { ArrowLeft, Phone, Video, MoreHorizontal, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -42,24 +42,32 @@ export default function ChannelPage({
   useEffect(() => {
     if (!channelId || channelId === "undefined") return;
     async function load() {
-      const [ch, msgs, mems] = await Promise.all([
-        getChannel(channelId),
-        getMessages(channelId),
-        getChannelMembers(channelId),
-      ]);
-      if (!ch) {
+      try {
+        const [ch, msgs, mems] = await Promise.all([
+          getChannel(channelId),
+          getMessages(channelId),
+          getChannelMembers(channelId),
+        ]);
+        if (!ch) {
+          toast.error("Conversation not found");
+          router.replace("/chat");
+          return;
+        }
+        setChannel(ch);
+        setMessages(msgs);
+        setMembers(mems);
+      } catch {
+        toast.error("Failed to load conversation");
         router.replace("/chat");
         return;
       }
-      setChannel(ch);
-      setMessages(msgs);
-      setMembers(mems);
       setLoading(false);
     }
     load();
   }, [channelId, router]);
 
   useEffect(() => {
+    if (!channelId || channelId === "undefined") return;
     const sub = subscribeToMessages(channelId, (msg) => {
       setMessages((prev) => [...prev, msg]);
     });
@@ -93,6 +101,29 @@ export default function ChannelPage({
       ? `@${otherMembers[0].username}`
       : `${otherMembers.length} participants`
     : `${members.length} members`;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-3.5rem)]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+          <p className="text-sm text-text-muted">Loading conversation...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!channel) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-3.5rem)] p-8 text-center">
+        <MessageCircle className="h-12 w-12 text-text-muted mb-4" />
+        <p className="text-text-muted text-sm">Conversation not available</p>
+        <Link href="/chat" className="mt-4 text-brand-500 text-sm font-medium hover:underline">
+          Back to chats
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)]">

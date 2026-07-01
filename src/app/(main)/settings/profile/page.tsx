@@ -82,7 +82,8 @@ export default function EditProfilePage() {
       let avatar_url = profile?.avatar_url ?? null;
 
       if (avatarFile) {
-        const path = `avatars/${user.id}/${Date.now()}-${avatarFile.name}`;
+        const cleanName = avatarFile.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+        const path = `avatars/${user.id}/${Date.now()}-${cleanName}`;
         const url = await uploadMedia(avatarFile, path);
         if (url) avatar_url = url;
       }
