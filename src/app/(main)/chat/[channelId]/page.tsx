@@ -71,7 +71,7 @@ export default function ChannelPage({
   useEffect(() => {
     if (!channelId || channelId === "undefined") return;
     const sub = subscribeToMessages(channelId, (msg) => {
-      setMessages((prev) => [...prev, msg]);
+      setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
     });
     return () => { void sub.unsubscribe(); };
   }, [channelId]);
