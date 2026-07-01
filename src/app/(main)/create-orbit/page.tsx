@@ -324,7 +324,38 @@ export default function CreateOrbitPage() {
             <p className="text-sm text-red-500 bg-red-500/10 rounded-lg p-3">{error}</p>
           )}
 
-          <Button type="submit" variant="primary" size="lg" className="w-full" loading={creating} disabled={!name.trim()}>
+          {!(
+            name.trim().length > 0 &&
+            description.trim().length > 0 &&
+            category !== "" &&
+            selectedTags.length > 0 &&
+            location !== null &&
+            logoFile !== null &&
+            coverFile !== null
+          ) && (
+            <p className="text-xs text-amber-500/80 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-center">
+              Please fill all fields (Name, Description, Logo, Cover, Category, Tags, and Location) to create your orbit.
+            </p>
+          )}
+
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            className="w-full"
+            loading={creating}
+            disabled={
+              !(
+                name.trim().length > 0 &&
+                description.trim().length > 0 &&
+                category !== "" &&
+                selectedTags.length > 0 &&
+                location !== null &&
+                logoFile !== null &&
+                coverFile !== null
+              ) || creating
+            }
+          >
             Create Orbit
           </Button>
         </form>
