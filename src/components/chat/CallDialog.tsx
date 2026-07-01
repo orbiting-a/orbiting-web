@@ -7,6 +7,16 @@ import { ringtoneManager } from "@/lib/ringtone";
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.cloudflare.com:3478" },
   { urls: "stun:stun.l.google.com:19302" },
+  {
+    urls: "turn:openrelay.metered.ca:443?transport=tcp",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+  {
+    urls: "turn:openrelay.metered.ca:80?transport=tcp",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
 ];
 
 export function CallDialog({
@@ -212,11 +222,25 @@ export function CallDialog({
         };
 
         // === 8. Connection state ===
+        let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
         pc.onconnectionstatechange = () => {
           if (pc.connectionState === "connected") {
+            if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
             setStatus("connected");
             updateCallStatus(cid!, "connected").catch(() => {});
+          } else if (pc.connectionState === "disconnected") {
+            // WebRTC may reconnect — wait 8s before declaring failure
+            if (!disconnectTimer) {
+              disconnectTimer = setTimeout(() => {
+                if (pc.connectionState !== "connected") {
+                  updateCallStatus(cid!, "ended").catch(() => {});
+                  onEnd();
+                }
+              }, 8000);
+            }
           } else if (pc.connectionState === "failed") {
+            if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
             updateCallStatus(cid!, "ended").catch(() => {});
             setTimeout(onEnd, 1000);
           }
@@ -224,9 +248,11 @@ export function CallDialog({
 
         pc.oniceconnectionstatechange = () => {
           if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+            if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
             setStatus("connected");
             updateCallStatus(cid!, "connected").catch(() => {});
           } else if (pc.iceConnectionState === "failed") {
+            if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
             updateCallStatus(cid!, "ended").catch(() => {});
             setTimeout(onEnd, 1000);
           }
