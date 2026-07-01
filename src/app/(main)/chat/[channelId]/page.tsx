@@ -283,7 +283,7 @@ export default function ChannelPage({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-dvh">
+      <div className="flex items-center justify-center flex-1 min-h-0">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
           <p className="text-sm text-text-muted">Loading conversation...</p>
@@ -294,7 +294,7 @@ export default function ChannelPage({
 
   if (!channel) {
     return (
-      <div className="flex flex-col items-center justify-center h-dvh p-8 text-center">
+      <div className="flex flex-col items-center justify-center flex-1 min-h-0 p-8 text-center">
         <MessageCircle className="h-12 w-12 text-text-muted mb-4" />
         <p className="text-text-muted text-sm">Conversation not available</p>
         <Link href="/chat" className="mt-4 text-brand-500 text-sm font-medium hover:underline">
@@ -305,7 +305,7 @@ export default function ChannelPage({
   }
 
   return (
-    <div className="flex flex-col h-dvh">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <div className="flex items-center gap-3 min-w-0">
