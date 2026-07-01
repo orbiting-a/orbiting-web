@@ -105,7 +105,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)]">
+    <div className="flex h-dvh">
       <div className="w-full lg:w-80 border-r border-border flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-border">

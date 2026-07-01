@@ -39,6 +39,8 @@ export function Navbar() {
   const nextTheme = theme === "dark" ? "light" : theme === "light" ? "system" : "dark";
   const ThemeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
 
+  if (pathname.startsWith("/chat")) return null;
+
   return (
     <header className="sticky top-0 z-50 glass border-b border-border">
       <div className="flex items-center justify-between h-14 px-4 lg:px-6 max-w-screen-2xl mx-auto">

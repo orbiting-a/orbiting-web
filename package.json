@@ -13,6 +13,7 @@
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
     "@tanstack/react-query": "^5.101.2",
+    "ably": "^2.23.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.42.0",
     "leaflet": "^1.9.4",
