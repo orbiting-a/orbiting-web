@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { Phone, PhoneOff, Video } from "lucide-react";
+import { ringtoneManager } from "@/lib/ringtone";
 
 export function IncomingCall({
   callerName,
@@ -13,6 +15,12 @@ export function IncomingCall({
   onAnswer: () => void;
   onDecline: () => void;
 }) {
+  useEffect(() => {
+    ringtoneManager.startRingtone();
+    return () => {
+      ringtoneManager.stop();
+    };
+  }, []);
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 animate-fade-in">
       <div className="glass-card rounded-2xl p-8 w-full max-w-sm text-center">

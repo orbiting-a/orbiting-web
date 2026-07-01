@@ -2,10 +2,12 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
-  // Force HTTPS in production
+  // Force HTTPS in production (except on localhost)
   if (
     process.env.NODE_ENV === "production" &&
-    request.headers.get("x-forwarded-proto") === "http"
+    request.headers.get("x-forwarded-proto") === "http" &&
+    !request.nextUrl.hostname.includes("localhost") &&
+    !request.nextUrl.hostname.includes("127.0.0.1")
   ) {
     const url = new URL(request.url);
     url.protocol = "https:";

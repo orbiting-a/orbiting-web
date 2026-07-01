@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { PhoneOff, Mic, MicOff, Video, VideoOff, Camera, CameraOff } from "lucide-react";
+import { ringtoneManager } from "@/lib/ringtone";
 
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.cloudflare.com:3478" },
@@ -36,6 +37,17 @@ export function CallDialog({
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const initRanRef = useRef(false);
+
+  useEffect(() => {
+    if (status === "ringing") {
+      ringtoneManager.startRingback();
+    } else {
+      ringtoneManager.stop();
+    }
+    return () => {
+      ringtoneManager.stop();
+    };
+  }, [status]);
 
   useEffect(() => {
     let pc: RTCPeerConnection;
