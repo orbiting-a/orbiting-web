@@ -1220,8 +1220,9 @@ export async function getNearbyOrbits(lat: number, lng: number, radiusKm: number
 
     if (memberOrbits) {
       for (const d of memberOrbits) {
-        const o = (d as { orbits: Record<string, unknown> }).orbits;
-        if (o && !allOrbits.some((ao) => ao.id === (o as { id: string }).id)) {
+        const rawOrbits = (d as unknown as { orbits: any }).orbits;
+        const o = Array.isArray(rawOrbits) ? rawOrbits[0] : rawOrbits;
+        if (o && !allOrbits.some((ao) => ao.id === o.id)) {
           allOrbits.push(o as typeof allOrbits[number]);
         }
       }
