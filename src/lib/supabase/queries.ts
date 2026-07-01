@@ -643,19 +643,21 @@ export async function createDMChannel(targetUserId: string) {
   });
   if (existing) return existing as Channel;
 
-  const { data } = await supabase
+  const { data: channel } = await supabase
     .from("channels")
     .insert({ type: "dm", created_by: user.id })
     .select()
     .single();
 
-  if (data) {
-    await supabase.from("channel_members").insert([
-      { channel_id: data.id, user_id: user.id },
-      { channel_id: data.id, user_id: targetUserId },
-    ]);
-  }
-  return data as Channel | null;
+  if (!channel) throw new Error("Failed to create channel");
+
+  const { error: memberError } = await supabase.from("channel_members").insert([
+    { channel_id: channel.id, user_id: user.id },
+    { channel_id: channel.id, user_id: targetUserId },
+  ]);
+  if (memberError) throw memberError;
+
+  return channel as Channel;
 }
 
 export async function getChannelMembers(channelId: string) {
