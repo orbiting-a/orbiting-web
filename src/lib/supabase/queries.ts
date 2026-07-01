@@ -690,6 +690,18 @@ export async function createDMChannel(targetUserId: string) {
   return channel as Channel;
 }
 
+export async function getChannelLastMessage(channelId: string) {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("messages")
+    .select("content, created_at")
+    .eq("channel_id", channelId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+  return data as { content: string | null; created_at: string } | null;
+}
+
 export async function getChannelMembers(channelId: string) {
   const supabase = createClient();
   const { data } = await supabase

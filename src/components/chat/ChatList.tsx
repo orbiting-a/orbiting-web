@@ -3,7 +3,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { Avatar } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import { getMyChannels, getChannelMembers, leaveChannel } from "@/lib/supabase/queries";
+import { getMyChannels, getChannelMembers, getChannelLastMessage, leaveChannel } from "@/lib/supabase/queries";
+import { getCurrentUser } from "@/lib/auth";
 import { MessageCircle, Hash, Trash2, CheckCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -11,7 +12,10 @@ import { toast } from "sonner";
 import type { Channel, Profile } from "@/types/database";
 
 export function ChatList({ filter = "All" }: { filter?: string }) {
-  const [conversations, setConversations] = useState<(Channel & { otherUser?: Profile })[]>([]);
+  const [conversations, setConversations] = useState<Channel[]>([]);
+  const [membersMap, setMembersMap] = useState<Record<string, Profile[]>>({});
+  const [lastMsgMap, setLastMsgMap] = useState<Record<string, { content: string | null; created_at: string } | null>>({});
+  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -20,18 +24,26 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
   const router = useRouter();
 
   useEffect(() => {
+    getCurrentUser().then((u) => setCurrentUser(u));
+  }, []);
+
+  useEffect(() => {
     async function load() {
       const channels = await getMyChannels();
-      const enriched: (Channel & { otherUser?: Profile })[] = [];
-      for (const ch of channels) {
-        if (ch.type === "dm") {
-          const members = await getChannelMembers(ch.id);
-          enriched.push({ ...ch, otherUser: members.length > 0 ? members[0] : undefined });
-        } else {
-          enriched.push(ch);
-        }
-      }
-      setConversations(enriched);
+      setConversations(channels);
+
+      const mm: Record<string, Profile[]> = {};
+      const lm: Record<string, { content: string | null; created_at: string } | null> = {};
+      await Promise.all(channels.map(async (ch) => {
+        const [members, lastMsg] = await Promise.all([
+          getChannelMembers(ch.id),
+          getChannelLastMessage(ch.id),
+        ]);
+        mm[ch.id] = members;
+        lm[ch.id] = lastMsg;
+      }));
+      setMembersMap(mm);
+      setLastMsgMap(lm);
       setLoading(false);
     }
     load();
@@ -46,6 +58,14 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
     }
     return result;
   }, [conversations, filter]);
+
+  const getOtherUser = (ch: Channel): Profile | undefined => {
+    if (ch.type !== "dm") return undefined;
+    const members = membersMap[ch.id] || [];
+    return members.find((m) => m.id !== currentUser?.id) || members[0];
+  };
+
+  const getLastMsg = (ch: Channel) => lastMsgMap[ch.id];
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -91,6 +111,7 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
             <div className="h-10 w-10 rounded-full bg-border-subtle animate-pulse" />
             <div className="space-y-2 flex-1">
               <div className="h-3 w-28 bg-border-subtle rounded animate-pulse" />
+              <div className="h-2 w-20 bg-border-subtle rounded animate-pulse" />
             </div>
           </div>
         ))}
@@ -147,11 +168,11 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
       {filtered.map((ch) => {
         const isActive = pathname === `/chat/${ch.id}`;
         const isDM = ch.type === "dm";
+        const otherUser = getOtherUser(ch);
         const name = isDM
-          ? (ch as Channel & { otherUser?: Profile }).otherUser?.display_name ||
-            (ch as Channel & { otherUser?: Profile }).otherUser?.username ||
-            "Unknown"
+          ? otherUser?.display_name || otherUser?.username || "Unknown"
           : ch.name || "Unnamed";
+        const lastMsg = getLastMsg(ch);
         const isSelected = selected.has(ch.id);
 
         if (selectMode) {
@@ -178,11 +199,11 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
                   </svg>
                 )}
               </div>
-              {isDM ? (
+              {isDM && otherUser ? (
                 <Avatar
                   name={name}
                   size="sm"
-                  src={(ch as Channel & { otherUser?: Profile }).otherUser?.avatar_url}
+                  src={otherUser.avatar_url}
                 />
               ) : (
                 <div className="h-8 w-8 rounded-full bg-brand-400/20 flex items-center justify-center">
@@ -191,6 +212,9 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
               )}
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{name}</p>
+                {lastMsg?.content && (
+                  <p className="text-xs text-text-muted truncate mt-0.5">{lastMsg.content}</p>
+                )}
               </div>
             </button>
           );
@@ -207,11 +231,11 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
                 : "text-text-secondary hover:text-text-primary hover:bg-surface-raised"
             )}
           >
-            {isDM ? (
+            {isDM && otherUser ? (
               <Avatar
                 name={name}
                 size="sm"
-                src={(ch as Channel & { otherUser?: Profile }).otherUser?.avatar_url}
+                src={otherUser.avatar_url}
               />
             ) : (
               <div className="h-8 w-8 rounded-full bg-brand-400/20 flex items-center justify-center">
@@ -220,6 +244,11 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
             )}
             <div className="flex-1 min-w-0">
               <p className="font-medium truncate">{name}</p>
+              {lastMsg?.content && (
+                <p className={cn("text-xs truncate mt-0.5", isActive ? "text-white/70" : "text-text-muted")}>
+                  {lastMsg.content}
+                </p>
+              )}
             </div>
           </Link>
         );
