@@ -15,6 +15,7 @@ import {
   sendMessage,
   sendFileMessage,
   subscribeToMessages,
+  subscribeToCalls,
   deleteMessage,
   deleteMessageForEveryone,
   markChannelRead,
@@ -88,6 +89,17 @@ export default function ChannelPage({
     const timer = setTimeout(() => markChannelRead(channelId), 500);
     return () => clearTimeout(timer);
   }, [channelId, currentUserId, messages]);
+
+  // Listen for incoming calls
+  useEffect(() => {
+    if (!channelId || channelId === "undefined") return;
+    const sub = subscribeToCalls(channelId, (call) => {
+      if (call.callee_id === currentUserId && (call.type === "audio" || call.type === "video")) {
+        setCallActive(call.type);
+      }
+    });
+    return () => { sub.unsubscribe(); };
+  }, [channelId, currentUserId]);
 
   const handleSend = useCallback(
     async (content: string) => {
@@ -275,7 +287,9 @@ export default function ChannelPage({
         <CallDialog
           channelId={channelId}
           userId={currentUserId || ""}
+          otherUserId={otherMembers[0]?.id || ""}
           otherUserName={otherMembers[0]?.display_name || otherMembers[0]?.username || "User"}
+          callType={callActive}
           onEnd={() => setCallActive(null)}
         />
       )}

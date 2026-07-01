@@ -752,6 +752,92 @@ export async function markChannelRead(channelId: string) {
     .update({ last_read_at: new Date().toISOString() })
     .eq("channel_id", channelId)
     .eq("user_id", user.id);
+
+  // Mark all unread messages in this channel as read
+  await supabase
+    .from("messages")
+    .update({ is_read: true })
+    .eq("channel_id", channelId)
+    .neq("sender_id", user.id)
+    .eq("is_read", false);
+}
+
+// ===== CALLS =====
+
+export async function createCall(channelId: string, calleeId: string, type: "audio" | "video") {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { data, error } = await supabase
+    .from("calls")
+    .insert({ channel_id: channelId, caller_id: user.id, callee_id: calleeId, type })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as { id: string };
+}
+
+export async function updateCallStatus(callId: string, status: string) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("calls")
+    .update({ status, ended_at: status === "ended" ? new Date().toISOString() : undefined })
+    .eq("id", callId);
+  if (error) throw error;
+}
+
+export async function sendCallSignal(callId: string, type: string, payload: unknown) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from("call_signals")
+    .insert({ call_id: callId, sender_id: user.id, type, payload });
+  if (error) throw error;
+}
+
+export function subscribeToCallSignals(callId: string, onSignal: (signal: { type: string; payload: unknown }) => void) {
+  const supabase = createClient();
+  const channel = supabase
+    .channel(`call-signals-${callId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "call_signals",
+        filter: `call_id=eq.${callId}`,
+      },
+      (payload) => {
+        const signal = payload.new as { type: string; payload: unknown; sender_id: string };
+        onSignal(signal);
+      }
+    )
+    .subscribe();
+  return { unsubscribe: () => { void channel.unsubscribe(); } };
+}
+
+export function subscribeToCalls(channelId: string, onCall: (call: { id: string; caller_id: string; callee_id: string; type: string }) => void) {
+  const supabase = createClient();
+  const channel = supabase
+    .channel(`calls-${channelId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "calls",
+        filter: `channel_id=eq.${channelId}`,
+      },
+      (payload) => {
+        const call = payload.new as { id: string; caller_id: string; type: string; callee_id: string };
+        onCall(call);
+      }
+    )
+    .subscribe();
+  return { unsubscribe: () => { void channel.unsubscribe(); } };
 }
 
 export async function getUnreadCounts() {

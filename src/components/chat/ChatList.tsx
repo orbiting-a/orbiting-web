@@ -54,6 +54,15 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
     load();
   }, []);
 
+  // Re-fetch unread counts when navigating back to chat list from a channel
+  useEffect(() => {
+    if (pathname === "/chat") {
+      getUnreadCounts().then((unread) => {
+        setUnreadCounts(Object.fromEntries(unread.map((u) => [u.channel_id, u.count])));
+      });
+    }
+  }, [pathname]);
+
   const filtered = useMemo(() => {
     let result = conversations;
     if (filter === "DMs") {

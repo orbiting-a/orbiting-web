@@ -25,6 +25,8 @@ export function ChatInput({
   const [filePreview, setFilePreview] = useState<File | null>(null);
   const [recording, setRecording] = useState(false);
   const [recordDuration, setRecordDuration] = useState(0);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [recordingStream, setRecordingStream] = useState<MediaStream | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
@@ -81,7 +83,8 @@ export function ChatInput({
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      setRecordingStream(stream);
       const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
       chunksRef.current = [];
       recorder.ondataavailable = (e) => {
@@ -89,14 +92,15 @@ export function ChatInput({
       };
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        const file = Object.assign(new Blob([blob], { type: "audio/webm" }), { name: `voice-${Date.now()}.webm`, lastModified: Date.now() }) as File;
-        onSendFile?.(file);
+        setRecordedBlob(blob);
         stream.getTracks().forEach((t) => t.stop());
+        setRecordingStream(null);
       };
       recorder.start();
       mediaRecorderRef.current = recorder;
       setRecording(true);
       setRecordDuration(0);
+      setRecordedBlob(null);
       recordTimerRef.current = setInterval(() => {
         setRecordDuration((d) => d + 1);
       }, 1000);
@@ -109,6 +113,22 @@ export function ChatInput({
     mediaRecorderRef.current?.stop();
     setRecording(false);
     clearInterval(recordTimerRef.current);
+  };
+
+  const cancelRecording = () => {
+    recordingStream?.getTracks().forEach((t) => t.stop());
+    setRecordingStream(null);
+    mediaRecorderRef.current?.stop();
+    setRecording(false);
+    setRecordedBlob(null);
+    clearInterval(recordTimerRef.current);
+  };
+
+  const sendRecording = () => {
+    if (!recordedBlob) return;
+    const file = Object.assign(new Blob([recordedBlob], { type: "audio/webm" }), { name: `voice-${Date.now()}.webm`, lastModified: Date.now() }) as File;
+    onSendFile?.(file);
+    setRecordedBlob(null);
   };
 
   const isImage = filePreview?.type.startsWith("image/");
