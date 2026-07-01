@@ -100,9 +100,17 @@ export function CallDialog({
 
         if (!cid) throw new Error("No call ID");
 
-        statusUnsub = subscribeToCallStatus(cid, (status) => {
+        statusUnsub = subscribeToCallStatus(cid, async (status) => {
           if (status === "ended") {
             onEnd();
+          } else if (status === "connected") {
+            if (isCallerRole && pc && !pc.remoteDescription) {
+              const { getCallSignals } = await import("@/lib/supabase/queries");
+              const existing = await getCallSignals(cid!);
+              for (const s of existing) {
+                await handleSignal(s);
+              }
+            }
           }
         });
 
@@ -137,7 +145,7 @@ export function CallDialog({
             await pc.setRemoteDescription(new RTCSessionDescription(s.payload as RTCSessionDescriptionInit));
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
-            await sendCallSignal(cid!, "answer", answer);
+            await sendCallSignal(cid!, otherUserId, "answer", answer);
             setStatus("connected");
             updateCallStatus(cid!, "connected").catch(() => {});
             await processIceQueue();
@@ -163,7 +171,7 @@ export function CallDialog({
 
         pc.onicecandidate = (event) => {
           if (event.candidate && cid) {
-            sendCallSignal(cid, "ice-candidate", event.candidate.toJSON()).catch(() => {});
+            sendCallSignal(cid, otherUserId, "ice-candidate", event.candidate.toJSON()).catch(() => {});
           }
         };
 
@@ -193,7 +201,7 @@ export function CallDialog({
         if (isCallerRole) {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
-          await sendCallSignal(cid, "offer", offer);
+          await sendCallSignal(cid, otherUserId, "offer", offer);
           setStatus("ringing");
         } else {
           if (!pc.remoteDescription) {

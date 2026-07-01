@@ -1,20 +1,19 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-import { motion, AnimatePresence, useMotionValue, useTransform } from "framer-motion";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Users, Globe, Calendar, GripVertical } from "lucide-react";
+import { Users, Globe, Calendar } from "lucide-react";
 
 const MIN_RANGE = 1;
 const MAX_RANGE = 500;
+const WORLD_VAL = 20000;
 
 const interests = [
   { label: "Orbits", value: "orbits", icon: Globe },
   { label: "People", value: "people", icon: Users },
   { label: "Events", value: "events", icon: Calendar },
 ];
-
-const rangeSteps = [10, 50, 100, 200, 500];
 
 function PokeballButton({ isOpen, onClick }: { isOpen: boolean; onClick: () => void }) {
   return (
@@ -29,21 +28,21 @@ function PokeballButton({ isOpen, onClick }: { isOpen: boolean; onClick: () => v
       <div
         className="h-14 w-14 rounded-full relative overflow-hidden shadow-xl"
         style={{
-          border: "3px solid #1a1a2e",
+          border: "3px solid #0f172a",
           boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
         }}
       >
-        {/* Top half (red) */}
+        {/* Top half (sky-400 / brand blue) */}
         <motion.div
           className="absolute inset-x-0 top-0"
-          style={{ height: "48%", background: "linear-gradient(180deg, #ef4444, #dc2626)" }}
+          style={{ height: "48%", background: "linear-gradient(180deg, #38bdf8, #0284c7)" }}
           animate={isOpen ? { y: -8 } : { y: 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
         />
-        {/* Bottom half (white) */}
+        {/* Bottom half (dark slate) */}
         <motion.div
           className="absolute inset-x-0 bottom-0"
-          style={{ height: "48%", background: "linear-gradient(0deg, #f8f8f8, #fff)" }}
+          style={{ height: "48%", background: "linear-gradient(0deg, #1e293b, #0f172a)" }}
           animate={isOpen ? { y: 8 } : { y: 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
         />
@@ -53,7 +52,7 @@ function PokeballButton({ isOpen, onClick }: { isOpen: boolean; onClick: () => v
           style={{
             top: "44%",
             height: "12%",
-            background: "linear-gradient(180deg, #2d2d44, #1a1a2e, #2d2d44)",
+            background: "linear-gradient(180deg, #334155, #0f172a, #334155)",
           }}
         />
         {/* Center button */}
@@ -63,14 +62,14 @@ function PokeballButton({ isOpen, onClick }: { isOpen: boolean; onClick: () => v
             width: 22,
             height: 22,
             borderRadius: "50%",
-            background: "radial-gradient(circle at 35% 35%, #f0f0f0, #c0c0c0 50%, #888 100%)",
-            border: "2.5px solid #1a1a2e",
+            background: "radial-gradient(circle at 35% 35%, #f8fafc, #cbd5e1 50%, #64748b 100%)",
+            border: "2.5px solid #0f172a",
             boxShadow: "inset 0 -2px 4px rgba(0,0,0,0.3)",
           }}
           animate={{
             scale: isOpen ? 1.3 : 1,
             boxShadow: isOpen
-              ? "0 0 20px rgba(54,188,203,0.6), inset 0 -2px 4px rgba(0,0,0,0.3)"
+              ? "0 0 20px rgba(56,188,248,0.6), inset 0 -2px 4px rgba(0,0,0,0.3)"
               : "inset 0 -2px 4px rgba(0,0,0,0.3)",
           }}
           transition={{ type: "spring", stiffness: 300, damping: 15 }}
@@ -80,8 +79,8 @@ function PokeballButton({ isOpen, onClick }: { isOpen: boolean; onClick: () => v
               width: 8,
               height: 8,
               borderRadius: "50%",
-              background: "radial-gradient(circle at 35% 35%, #fff, #666 50%, #333 100%)",
-              border: "1px solid #555",
+              background: "radial-gradient(circle at 35% 35%, #fff, #94a3b8 50%, #475569 100%)",
+              border: "1px solid #64748b",
             }}
             animate={{ rotate: isOpen ? 180 : 0 }}
             transition={{ duration: 0.4, ease: "easeInOut" }}
@@ -90,7 +89,7 @@ function PokeballButton({ isOpen, onClick }: { isOpen: boolean; onClick: () => v
         {/* Glow ring */}
         <motion.div
           className="absolute inset-0 rounded-full"
-          style={{ border: "2px solid rgba(54,188,203,0.3)" }}
+          style={{ border: "2px solid rgba(56,188,248,0.3)" }}
           animate={{
             opacity: isOpen ? 1 : 0,
             scale: isOpen ? 1.15 : 1,
@@ -102,87 +101,145 @@ function PokeballButton({ isOpen, onClick }: { isOpen: boolean; onClick: () => v
   );
 }
 
-function RangeSlider({
+function ArcSlider({
   radius,
   onChange,
 }: {
   radius: number;
   onChange: (r: number) => void;
 }) {
-  const sliderRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const trackHeight = 160;
 
-  const fraction = (radius - MIN_RANGE) / (MAX_RANGE - MIN_RANGE);
-  const knobY = (1 - fraction) * trackHeight;
+  // Constants for SVG
+  const cx = 100;
+  const cy = 100;
+  const r = 80;
 
-  const yToRadius = useCallback(
-    (clientY: number) => {
-      if (!sliderRef.current) return radius;
-      const rect = sliderRef.current.getBoundingClientRect();
-      const y = Math.max(0, Math.min(trackHeight, clientY - rect.top));
-      const f = 1 - y / trackHeight;
-      return Math.round(MIN_RANGE + f * (MAX_RANGE - MIN_RANGE));
+  // Calculate theta based on radius
+  let theta = 0;
+  if (radius >= WORLD_VAL) {
+    theta = Math.PI; // Far Left: World
+  } else {
+    const clampedRadius = Math.max(MIN_RANGE, Math.min(MAX_RANGE, radius));
+    // Apply inverse mapping of the t^2.5 curve
+    const t = Math.pow((clampedRadius - MIN_RANGE) / (MAX_RANGE - MIN_RANGE), 1 / 2.5);
+    theta = t * (Math.PI - 0.15); // Scale between 0 (1km) and PI - 0.15 (500km)
+  }
+
+  // Thumb position
+  const thumbX = cx + r * Math.cos(theta);
+  const thumbY = cy - r * Math.sin(theta);
+
+  const handlePointerUpdate = useCallback(
+    (e: React.PointerEvent) => {
+      if (!svgRef.current) return;
+      const rect = svgRef.current.getBoundingClientRect();
+      const localX = ((e.clientX - rect.left) / rect.width) * 200;
+      const localY = ((e.clientY - rect.top) / rect.height) * 110;
+
+      const dx = localX - cx;
+      const dy = cy - localY; // Invert Y so up is positive
+
+      let newTheta = Math.atan2(dy, dx);
+      if (newTheta < 0) {
+        newTheta = dx < 0 ? Math.PI : 0;
+      }
+
+      // Map newTheta to radius
+      let newRadius: number;
+      if (newTheta > Math.PI - 0.15) {
+        newRadius = WORLD_VAL; // World snap
+      } else {
+        const t = newTheta / (Math.PI - 0.15);
+        newRadius = Math.round(MIN_RANGE + Math.pow(t, 2.5) * (MAX_RANGE - MIN_RANGE));
+      }
+      onChange(newRadius);
     },
-    [radius]
+    [onChange]
   );
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       setIsDragging(true);
       e.currentTarget.setPointerCapture(e.pointerId);
-      onChange(yToRadius(e.clientY));
+      handlePointerUpdate(e);
     },
-    [onChange, yToRadius]
+    [handlePointerUpdate]
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
       if (!isDragging) return;
-      onChange(yToRadius(e.clientY));
+      handlePointerUpdate(e);
     },
-    [isDragging, onChange, yToRadius]
+    [isDragging, handlePointerUpdate]
   );
 
-  const handlePointerUp = useCallback(() => setIsDragging(false), []);
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    setIsDragging(false);
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  }, []);
 
   return (
-    <div
-      ref={sliderRef}
-      className="relative w-10 cursor-pointer shrink-0 touch-none rounded-full border border-border-subtle"
-      style={{
-        height: trackHeight,
-        background: `linear-gradient(to top, #36BCCB22, #36BCCB66, #36BCCB)`,
-      }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerUp}
-    >
-      <div
-        className="absolute left-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-white border-2 border-brand-500 shadow-lg flex items-center justify-center pointer-events-none"
-        style={{
-          top: knobY - 16,
-          boxShadow: isDragging
-            ? "0 0 0 6px rgba(54,188,203,0.25), 0 2px 8px rgba(0,0,0,0.3)"
-            : "0 2px 8px rgba(0,0,0,0.3)",
-        }}
+    <div className="w-full flex flex-col items-center">
+      <svg
+        ref={svgRef}
+        viewBox="0 0 200 110"
+        className="w-full max-w-[220px] select-none touch-none"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
       >
-        <GripVertical className="h-4 w-4 text-brand-500" />
-      </div>
-      {rangeSteps.map((km) => {
-        const f = (km - MIN_RANGE) / (MAX_RANGE - MIN_RANGE);
-        const y = (1 - f) * trackHeight;
-        return (
-          <div
-            key={km}
-            className="absolute right-2 flex items-center pointer-events-none"
-            style={{ top: y - 4 }}
-          >
-            <span className="text-[7px] font-medium text-text-muted leading-none">{km}</span>
-          </div>
-        );
-      })}
+        <defs>
+          <linearGradient id="arc-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#a855f7" /> {/* Purple for World */}
+            <stop offset="50%" stopColor="#38bdf8" /> {/* Sky blue for Mid */}
+            <stop offset="100%" stopColor="#10b981" /> {/* Emerald for 1km */}
+          </linearGradient>
+          <filter id="glow-filter" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+
+        {/* Background track path */}
+        <path
+          d="M 20,100 A 80,80 0 0,1 180,100"
+          fill="none"
+          stroke="#1e293b"
+          strokeWidth="10"
+          strokeLinecap="round"
+        />
+
+        {/* Active track path with gradient */}
+        <path
+          d="M 20,100 A 80,80 0 0,1 180,100"
+          fill="none"
+          stroke="url(#arc-gradient)"
+          strokeWidth="6"
+          strokeLinecap="round"
+        />
+
+        {/* Start / End Labels */}
+        <text x="14" y="108" fill="#94a3b8" fontSize="8" fontWeight="800" textAnchor="middle">
+          WORLD
+        </text>
+        <text x="186" y="108" fill="#94a3b8" fontSize="8" fontWeight="800" textAnchor="middle">
+          1 KM
+        </text>
+
+        {/* Thumb */}
+        <circle
+          cx={thumbX}
+          cy={thumbY}
+          r="9"
+          fill="#ffffff"
+          stroke="#38bdf8"
+          strokeWidth="3.5"
+          style={{ filter: "url(#glow-filter)", cursor: "grab" }}
+        />
+      </svg>
     </div>
   );
 }
@@ -199,6 +256,39 @@ export function ChakraFilter({
   onTypesChange: (types: string[]) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [inputValue, setInputValue] = useState("");
+
+  // Update input text when external radius changes
+  useEffect(() => {
+    if (radius >= WORLD_VAL) {
+      setInputValue("World");
+    } else {
+      setInputValue(radius.toString());
+    }
+  }, [radius]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
+  };
+
+  const handleInputBlur = () => {
+    const trimmed = inputValue.trim().toLowerCase();
+    if (trimmed === "world" || trimmed === "") {
+      onRadiusChange(WORLD_VAL);
+      setInputValue("World");
+    } else {
+      const num = parseInt(trimmed, 10);
+      if (isNaN(num) || num <= 0) {
+        onRadiusChange(WORLD_VAL);
+        setInputValue("World");
+      } else {
+        // Enforce limits: minimum 1km, maximum 20000km (World)
+        const clamped = Math.max(MIN_RANGE, Math.min(WORLD_VAL, num));
+        onRadiusChange(clamped);
+        setInputValue(clamped >= WORLD_VAL ? "World" : clamped.toString());
+      }
+    }
+  };
 
   const toggleType = (type: string) => {
     if (activeTypes.includes(type)) {
@@ -219,72 +309,65 @@ export function ChakraFilter({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className="absolute top-20 left-4 z-[1000] bg-surface-raised/95 backdrop-blur-md border border-border-subtle rounded-2xl p-4 w-[260px] shadow-2xl"
+            className="absolute top-20 left-4 z-[1000] bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-2xl p-4 w-[280px] shadow-[0_10px_30px_rgba(0,0,0,0.5),0_0_20px_rgba(56,188,248,0.15)]"
           >
-            <div className="flex items-center justify-between mb-3">
-              <motion.h3
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.05 }}
-                className="text-xs font-semibold text-text-muted uppercase tracking-wider"
-              >
-                Radar
-              </motion.h3>
-              <motion.span
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.1, type: "spring", stiffness: 400 }}
-                className="text-xs text-brand-400 font-medium bg-brand-500/10 px-2 py-0.5 rounded-full"
-              >
-                {radius} km
-              </motion.span>
+            <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-2">
+              <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                Discovery Radar
+              </h3>
+              <span className="text-[10px] text-sky-400 font-extrabold bg-sky-500/10 border border-sky-500/20 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                {radius >= WORLD_VAL ? "World" : `${radius} km`}
+              </span>
             </div>
 
-            <div className="flex gap-4">
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
-              >
-                <RangeSlider radius={radius} onChange={onRadiusChange} />
-              </motion.div>
+            <div className="space-y-4">
+              {/* Semicircle Slider Control Container */}
+              <div className="flex flex-col items-center justify-center py-3 bg-slate-950/40 rounded-xl border border-slate-800/80 px-2">
+                <ArcSlider radius={radius} onChange={onRadiusChange} />
 
-              <motion.div
-                className="flex-1 space-y-1.5"
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.15 }}
-              >
-                {interests.map((interest, i) => {
+                {/* Custom input box */}
+                <div className="mt-4 flex items-center justify-between gap-2 w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 focus-within:border-sky-500/50 transition-colors">
+                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                    Custom Radius
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      value={inputValue}
+                      onChange={handleInputChange}
+                      onBlur={handleInputBlur}
+                      className="w-16 bg-transparent text-right text-xs font-bold text-sky-400 focus:outline-none focus:ring-0 p-0"
+                      placeholder="World"
+                    />
+                    <span className="text-[9px] text-slate-600 font-bold">
+                      {radius >= WORLD_VAL ? "" : "KM"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid of interest filters */}
+              <div className="grid grid-cols-3 gap-1.5">
+                {interests.map((interest) => {
                   const isActive = activeTypes.includes(interest.value);
                   const Icon = interest.icon;
                   return (
-                    <motion.button
+                    <button
                       key={interest.value}
-                      initial={{ opacity: 0, x: 10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.15 + i * 0.05 }}
                       onClick={() => toggleType(interest.value)}
                       className={cn(
-                        "flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-sm font-medium transition-colors",
+                        "flex flex-col items-center gap-1.5 justify-center py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all duration-200",
                         isActive
-                          ? "bg-brand-500/10 text-brand-400 border border-brand-500/20"
-                          : "text-text-secondary hover:text-text-primary hover:bg-surface-raised border border-transparent"
+                          ? "bg-sky-500/10 text-sky-400 border-sky-500/30 shadow-[0_0_12px_rgba(56,188,248,0.15)]"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border-transparent bg-slate-900/50"
                       )}
-                      whileTap={{ scale: 0.97 }}
                     >
                       <Icon className="h-4 w-4" />
                       {interest.label}
-                      {isActive && (
-                        <motion.span
-                          layoutId="activeDot"
-                          className="ml-auto h-2 w-2 rounded-full bg-brand-500"
-                        />
-                      )}
-                    </motion.button>
+                    </button>
                   );
                 })}
-              </motion.div>
+              </div>
             </div>
           </motion.div>
         )}

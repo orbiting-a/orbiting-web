@@ -811,14 +811,14 @@ export async function getCallSignals(callId: string) {
   return (data ?? []) as { id: string; sender_id: string; type: string; payload: unknown }[];
 }
 
-export async function sendCallSignal(callId: string, type: string, payload: unknown) {
+export async function sendCallSignal(callId: string, receiverId: string, type: string, payload: unknown) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
   const { error } = await supabase
     .from("call_signals")
-    .insert({ call_id: callId, sender_id: user.id, type, payload });
+    .insert({ call_id: callId, sender_id: user.id, receiver_id: receiverId, type, payload });
   if (error) throw error;
 }
 
