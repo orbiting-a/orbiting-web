@@ -13,7 +13,7 @@ export default function MainLayout({
       <Navbar />
       <div className="flex flex-1">
         <Sidebar />
-        <main className="flex-1 min-w-0 pb-20 lg:pb-0 animate-fade-in">
+        <main className="flex flex-col flex-1 min-w-0 pb-20 lg:pb-0 animate-fade-in">
           <ErrorBoundary>
             {children}
           </ErrorBoundary>

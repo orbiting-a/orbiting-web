@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, Avatar, Button } from "@/components/ui";
-import { Image, Video, BarChart3, X, Plus, Trash2 } from "lucide-react";
-import { createPost, uploadMedia, createPoll } from "@/lib/supabase/queries";
+import { Image, Video, BarChart3, X, Plus, Trash2, Globe } from "lucide-react";
+import { createPost, uploadMedia, createPoll, getUserOrbits } from "@/lib/supabase/queries";
+import { getCurrentUser } from "@/lib/auth";
+import type { Orbit } from "@/types/database";
 
 export function CreatePost({
   orbitId,
@@ -20,8 +22,24 @@ export function CreatePost({
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
 
+  const [orbitSelectorOpen, setOrbitSelectorOpen] = useState(false);
+  const [selectedOrbit, setSelectedOrbit] = useState<Orbit | null>(null);
+  const [userOrbits, setUserOrbits] = useState<Orbit[]>([]);
+
+  useEffect(() => {
+    if (orbitId) return;
+    getCurrentUser().then((u) => {
+      if (u) getUserOrbits(u.id).then((orbits) => {
+        if (orbits) setUserOrbits(orbits);
+      });
+    });
+  }, [orbitId]);
+
+  const targetOrbitId = orbitId || selectedOrbit?.id || "";
+  const canPost = Boolean(targetOrbitId) && (Boolean(content.trim()) || mediaFiles.length > 0);
+
   const handleSubmit = async () => {
-    if (!content.trim() && mediaFiles.length === 0 && !showPoll) return;
+    if (!canPost) return;
     setPosting(true);
 
     try {
@@ -35,7 +53,7 @@ export function CreatePost({
       }
 
       const post = await createPost({
-        orbit_id: orbitId || "",
+        orbit_id: targetOrbitId,
         content: content.trim(),
         media_urls: mediaUrls.length > 0 ? mediaUrls : undefined,
         media_type: showPoll ? "poll" : mediaFiles.length > 0 ? "image" : "text",
@@ -83,10 +101,54 @@ export function CreatePost({
               onClick={() => setIsExpanded(true)}
               className="w-full text-left px-4 py-2.5 rounded-xl bg-surface-raised border border-border-subtle text-sm text-text-muted hover:text-text-secondary hover:border-border transition-colors"
             >
-              Share something with your orbit...
+              {orbitId ? "Share something with your orbit..." : "Share something with an orbit..."}
             </button>
           ) : (
             <div className="space-y-3">
+              {!orbitId && (
+                <div className="relative">
+                  <button
+                    onClick={() => setOrbitSelectorOpen(!orbitSelectorOpen)}
+                    className="flex items-center gap-2 w-full px-3 py-2 rounded-xl bg-surface-raised border border-border-subtle text-sm text-text-primary hover:border-border transition-colors"
+                  >
+                    <Globe className="h-4 w-4 text-text-muted shrink-0" />
+                    <span className={selectedOrbit ? "" : "text-text-muted"}>
+                      {selectedOrbit ? selectedOrbit.name : "Choose an orbit..."}
+                    </span>
+                  </button>
+                  {orbitSelectorOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setOrbitSelectorOpen(false)} />
+                      <div className="absolute left-0 top-full mt-1 w-full max-h-48 overflow-y-auto bg-surface-raised border border-border-subtle rounded-xl shadow-lg z-20 py-1">
+                        {userOrbits.length === 0 ? (
+                          <p className="px-3 py-2 text-sm text-text-muted">No orbits joined yet</p>
+                        ) : (
+                          userOrbits.map((o) => (
+                            <button
+                              key={o.id}
+                              onClick={() => {
+                                setSelectedOrbit(o);
+                                setOrbitSelectorOpen(false);
+                              }}
+                              className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors ${
+                                selectedOrbit?.id === o.id ? "text-brand-400" : "text-text-primary"
+                              }`}
+                            >
+                              <div className="h-6 w-6 rounded-full bg-brand-400/20 flex items-center justify-center shrink-0">
+                                <span className="text-[10px] text-brand-400 font-bold">
+                                  {o.name.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              <span className="truncate">{o.name}</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
               <textarea
                 autoFocus
                 value={content}
@@ -209,7 +271,7 @@ export function CreatePost({
                     size="sm"
                     onClick={handleSubmit}
                     loading={posting}
-                    disabled={!content.trim() && mediaFiles.length === 0}
+                    disabled={!canPost}
                   >
                     Post
                   </Button>
