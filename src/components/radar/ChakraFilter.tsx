@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { Users, Globe, Calendar } from "lucide-react";
 
 const MIN_RANGE = 1;
-const MAX_RANGE = 500;
+const MEDIAN_RANGE = 1000;
 const WORLD_VAL = 20000;
 
 const interests = [
@@ -121,10 +121,14 @@ function ArcSlider({
   if (radius >= WORLD_VAL) {
     theta = Math.PI; // Far Left: World
   } else {
-    const clampedRadius = Math.max(MIN_RANGE, Math.min(MAX_RANGE, radius));
-    // Apply inverse mapping of the t^2.5 curve
-    const t = Math.pow((clampedRadius - MIN_RANGE) / (MAX_RANGE - MIN_RANGE), 1 / 2.5);
-    theta = t * (Math.PI - 0.15); // Scale between 0 (1km) and PI - 0.15 (500km)
+    const clampedRadius = Math.max(MIN_RANGE, Math.min(WORLD_VAL - 1, radius));
+    if (clampedRadius <= MEDIAN_RANGE) {
+      // Right half of arc (0 to PI/2) linearly mapping MIN_RANGE to MEDIAN_RANGE
+      theta = ((clampedRadius - MIN_RANGE) / (MEDIAN_RANGE - MIN_RANGE)) * (Math.PI / 2);
+    } else {
+      // Left half of arc (PI/2 to PI) linearly mapping MEDIAN_RANGE to WORLD_VAL
+      theta = Math.PI / 2 + ((clampedRadius - MEDIAN_RANGE) / (WORLD_VAL - MEDIAN_RANGE)) * (Math.PI / 2);
+    }
   }
 
   // Thumb position
@@ -148,11 +152,16 @@ function ArcSlider({
 
       // Map newTheta to radius
       let newRadius: number;
-      if (newTheta > Math.PI - 0.15) {
+      if (newTheta > Math.PI - 0.05) {
         newRadius = WORLD_VAL; // World snap
       } else {
-        const t = newTheta / (Math.PI - 0.15);
-        newRadius = Math.round(MIN_RANGE + Math.pow(t, 2.5) * (MAX_RANGE - MIN_RANGE));
+        if (newTheta <= Math.PI / 2) {
+          // Right half
+          newRadius = Math.round(MIN_RANGE + (newTheta / (Math.PI / 2)) * (MEDIAN_RANGE - MIN_RANGE));
+        } else {
+          // Left half
+          newRadius = Math.round(MEDIAN_RANGE + ((newTheta - Math.PI / 2) / (Math.PI / 2)) * (WORLD_VAL - MEDIAN_RANGE));
+        }
       }
       onChange(newRadius);
     },

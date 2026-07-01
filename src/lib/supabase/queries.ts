@@ -39,7 +39,8 @@ export async function updateProfile(
   const supabase = createClient();
   const { data, error } = await supabase
     .from("profiles")
-    .upsert({ id: userId, ...updates, updated_at: new Date().toISOString() })
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", userId)
     .select()
     .single();
   if (error) throw new Error(error.message);
@@ -169,6 +170,15 @@ export async function getUserOrbits(userId: string) {
     .select("orbits(*)")
     .eq("user_id", userId);
   return (data?.map((d: unknown) => (d as { orbits: Orbit }).orbits) ?? null) as Orbit[] | null;
+}
+
+export async function getCreatedOrbits(userId: string) {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("orbits")
+    .select("*")
+    .eq("created_by", userId);
+  return data as Orbit[] | null;
 }
 
 // ===== ORBIT MEMBERS =====

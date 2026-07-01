@@ -13,7 +13,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import Link from "next/link";
-import { getProfile, getFollowers, getFollowing, getUserOrbits, getUserPosts, toggleFollow, isFollowing, createDMChannel } from "@/lib/supabase/queries";
+import { getProfile, getFollowers, getFollowing, getUserOrbits, getCreatedOrbits, getUserPosts, toggleFollow, isFollowing, createDMChannel } from "@/lib/supabase/queries";
 import { toast } from "sonner";
 import { getCurrentUser } from "@/lib/auth";
 import { PostCard } from "@/components/feed/PostCard";
@@ -33,6 +33,7 @@ export default function ProfilePage({
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [orbits, setOrbits] = useState<Orbit[]>([]);
+  const [createdOrbits, setCreatedOrbits] = useState<Orbit[]>([]);
   const [posts, setPosts] = useState<PostWithRelations[]>([]);
   const [followers, setFollowers] = useState<Profile[]>([]);
   const [following, setFollowing] = useState<Profile[]>([]);
@@ -71,6 +72,7 @@ export default function ProfilePage({
   useEffect(() => {
     if (!profile) return;
     getUserOrbits(profile.id).then((data) => setOrbits(data ?? []));
+    getCreatedOrbits(profile.id).then((data) => setCreatedOrbits(data ?? []));
     getFollowers(profile.id).then((data) => setFollowers(data ?? []));
     getFollowing(profile.id).then((data) => setFollowing(data ?? []));
     getUserPosts(profile.id).then((data) => setPosts(data as PostWithRelations[]));
@@ -195,48 +197,62 @@ export default function ProfilePage({
         </div>
       </Card>
 
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Users className="h-5 w-5 text-brand-400" />
-          <h2 className="text-lg font-bold">Orbits</h2>
-        </div>
-        {orbits.length === 0 ? (
-          <Card
-            padding="md"
-            className="flex flex-col items-center py-8 text-center"
-          >
-            <p className="text-sm text-text-muted">
-              {isOwnProfile
-                ? "You haven't joined any orbits yet"
-                : "No orbits joined yet"}
-            </p>
-            {isOwnProfile && (
-              <Link href="/discover">
-                <Button variant="outline" size="sm" className="mt-3">
-                  Discover Orbits
-                </Button>
-              </Link>
-            )}
-          </Card>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {orbits.map((orbit) => (
-              <Link key={orbit.id} href={`/orbit/${orbit.slug}`}>
-                <Card hover padding="sm" className="text-center">
-                  <Avatar
-                    name={orbit.name}
-                    size="sm"
-                    src={orbit.logo_url}
-                    className="mx-auto mb-2"
-                  />
-                  <p className="text-xs font-medium text-text-primary truncate">
-                    {orbit.name}
-                  </p>
-                </Card>
-              </Link>
-            ))}
+      <div className="mb-6 space-y-6">
+        {createdOrbits.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <Users className="h-5 w-5 text-brand-400" />
+              <h2 className="text-lg font-bold">Created Orbits</h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {createdOrbits.map((orbit) => (
+                <Link key={orbit.id} href={`/orbit/${orbit.slug}`}>
+                  <Card hover padding="sm" className="text-center border-brand-500/20 bg-brand-500/5">
+                    <Avatar
+                      name={orbit.name}
+                      size="sm"
+                      src={orbit.logo_url}
+                      className="mx-auto mb-2"
+                    />
+                    <p className="text-xs font-medium text-text-primary truncate">
+                      {orbit.name}
+                    </p>
+                  </Card>
+                </Link>
+              ))}
+            </div>
           </div>
         )}
+
+        <div>
+          <div className="flex items-center gap-2 mb-4">
+            <Users className="h-5 w-5 text-brand-400" />
+            <h2 className="text-lg font-bold">Joined Orbits</h2>
+          </div>
+          {orbits.filter((o) => o.created_by !== profile?.id).length === 0 ? (
+            <Card padding="md" className="flex flex-col items-center py-8 text-center">
+              <p className="text-sm text-text-muted">
+                {isOwnProfile ? "You haven't joined any orbits yet" : "No orbits joined yet"}
+              </p>
+              {isOwnProfile && (
+                <Link href="/discover">
+                  <Button variant="outline" size="sm" className="mt-3">Discover Orbits</Button>
+                </Link>
+              )}
+            </Card>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {orbits.filter((o) => o.created_by !== profile?.id).map((orbit) => (
+                <Link key={orbit.id} href={`/orbit/${orbit.slug}`}>
+                  <Card hover padding="sm" className="text-center">
+                    <Avatar name={orbit.name} size="sm" src={orbit.logo_url} className="mx-auto mb-2" />
+                    <p className="text-xs font-medium text-text-primary truncate">{orbit.name}</p>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex border-b border-border mb-4">
