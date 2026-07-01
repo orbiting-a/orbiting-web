@@ -3,6 +3,7 @@ import { Nunito, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { Web3Provider } from "@/components/providers/Web3Provider";
 import { UserProvider } from "@/components/providers/UserProvider";
+import { PresenceProvider } from "@/components/providers/PresenceProvider";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -54,7 +55,9 @@ export default function RootLayout({
         <Web3Provider>
           <ThemeProvider>
             <UserProvider>
-              {children}
+              <PresenceProvider>
+                {children}
+              </PresenceProvider>
               <Toaster position="bottom-center" richColors closeButton />
             </UserProvider>
           </ThemeProvider>

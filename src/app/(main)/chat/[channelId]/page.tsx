@@ -6,6 +6,7 @@ import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ArrowLeft, Phone, Video, MoreHorizontal, MessageCircle, Trash2, LogOut } from "lucide-react";
 import { CallDialog } from "@/components/chat/CallDialog";
+import { useOnlineStatus } from "@/lib/presence";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -15,11 +16,13 @@ import {
   sendMessage,
   sendFileMessage,
   subscribeToMessages,
+  subscribeToMessageUpdates,
   subscribeToCalls,
   deleteMessage,
   deleteMessageForEveryone,
   markChannelRead,
   leaveChannel,
+  endCallWithLog,
 } from "@/lib/supabase/queries";
 import { getCurrentUser } from "@/lib/auth";
 import { toast } from "sonner";
@@ -94,6 +97,15 @@ export default function ChannelPage({
     return () => { void sub.unsubscribe(); };
   }, [channelId, currentUserId]);
 
+  // Listen for message updates (read receipts sync)
+  useEffect(() => {
+    if (!channelId || channelId === "undefined") return;
+    const sub = subscribeToMessageUpdates(channelId, (updated) => {
+      setMessages((prev) => prev.map((m) => m.id === updated.id ? { ...m, ...updated } : m));
+    });
+    return () => { sub.unsubscribe(); };
+  }, [channelId]);
+
   // Listen for incoming calls
   useEffect(() => {
     if (!channelId || channelId === "undefined") return;
@@ -164,6 +176,7 @@ export default function ChannelPage({
   }, [channelId]);
 
   const otherMembers = members.filter((m) => m.id !== currentUserId);
+  const isOnline = useOnlineStatus(currentUserId, otherMembers[0]?.id);
   const title = channel?.type === "dm"
     ? otherMembers.map((m) => m.display_name || m.username).join(", ") || "Chat"
     : channel?.name || "Channel";
@@ -223,14 +236,19 @@ export default function ChannelPage({
             <p className="font-semibold text-text-primary text-sm truncate">
               {title}
             </p>
-            <p className="text-xs text-text-muted truncate">
+            <p className="text-xs text-text-muted truncate flex items-center gap-1.5">
               {callActive ? (
                 <span className="flex items-center gap-1 text-green-500">
                   <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                   Call active
                 </span>
               ) : (
-                subtitle
+                <>
+                  {channel?.type === "dm" && otherMembers.length === 1 && (
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${isOnline ? "bg-green-500" : "bg-text-muted"}`} />
+                  )}
+                  {subtitle}
+                </>
               )}
             </p>
           </div>
@@ -313,7 +331,10 @@ export default function ChannelPage({
           initialType={callActive.type}
           callId={callActive.callId}
           isCaller={callActive.isCaller ?? true}
-          onEnd={() => setCallActive(null)}
+          onEnd={() => {
+            if (callActive.callId) endCallWithLog(callActive.callId, channelId).catch(() => {});
+            setCallActive(null);
+          }}
         />
       )}
     </div>

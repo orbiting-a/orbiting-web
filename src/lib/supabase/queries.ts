@@ -972,6 +972,62 @@ export function subscribeToMessages(
   return { channel, unsubscribe: () => channel.unsubscribe() };
 }
 
+export function subscribeToMessageUpdates(
+  channelId: string,
+  onUpdate: (message: Partial<Message>) => void
+) {
+  const supabase = createClient();
+  const channel = supabase
+    .channel(`messages-updates:${channelId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "messages",
+        filter: `channel_id=eq.${channelId}`,
+      },
+      (payload) => {
+        const updated = payload.new as Partial<Message>;
+        onUpdate(updated);
+      }
+    )
+    .subscribe();
+  return { unsubscribe: () => channel.unsubscribe() };
+}
+
+export async function endCallWithLog(callId: string, channelId: string) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { data: call } = await supabase
+    .from("calls")
+    .select("*")
+    .eq("id", callId)
+    .single();
+  if (!call) return;
+
+  const now = new Date().toISOString();
+  const started = new Date(call.created_at).getTime();
+  const durationSec = Math.floor((Date.now() - started) / 1000);
+  const mins = Math.floor(durationSec / 60);
+  const secs = durationSec % 60;
+  const durationStr = mins > 0 ? `${mins}:${secs.toString().padStart(2, "0")}` : `${secs}s`;
+  const icon = call.type === "video" ? "📹" : "📞";
+
+  await supabase
+    .from("calls")
+    .update({ status: "ended", ended_at: now })
+    .eq("id", callId);
+
+  await supabase.from("messages").insert({
+    channel_id: channelId,
+    sender_id: user.id,
+    content: `${icon} Call ended (${durationStr})`,
+  });
+}
+
 // ===== NOTIFICATIONS =====
 
 export async function getNotifications() {
