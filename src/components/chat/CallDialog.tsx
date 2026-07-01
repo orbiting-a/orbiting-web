@@ -41,13 +41,14 @@ export function CallDialog({
     let pc: RTCPeerConnection;
     let localStream: MediaStream;
     let signalUnsub: { unsubscribe: () => void } | null = null;
+    let statusUnsub: { unsubscribe: () => void } | null = null;
     const isCallerRole = isCaller;
 
     async function init() {
       if (initRanRef.current) return;
       initRanRef.current = true;
       try {
-        const { createCall, updateCallStatus, sendCallSignal, subscribeToCallSignals, getCallSignals } = await import("@/lib/supabase/queries");
+        const { createCall, updateCallStatus, sendCallSignal, subscribeToCallSignals, getCallSignals, subscribeToCallStatus } = await import("@/lib/supabase/queries");
 
         pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
         pcRef.current = pc;
@@ -80,6 +81,12 @@ export function CallDialog({
         }
 
         if (!cid) throw new Error("No call ID");
+
+        statusUnsub = subscribeToCallStatus(cid, (status) => {
+          if (status === "ended") {
+            onEnd();
+          }
+        });
 
         const iceCandidateQueue: RTCIceCandidateInit[] = [];
 
@@ -144,7 +151,7 @@ export function CallDialog({
           if (pc.connectionState === "connected") {
             setStatus("connected");
             updateCallStatus(cid!, "connected").catch(() => {});
-          } else if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+          } else if (pc.connectionState === "failed") {
             updateCallStatus(cid!, "ended").catch(() => {});
             setTimeout(onEnd, 1000);
           }
@@ -174,6 +181,7 @@ export function CallDialog({
     return () => {
       initRanRef.current = false;
       signalUnsub?.unsubscribe();
+      statusUnsub?.unsubscribe();
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       pcRef.current?.close();
     };

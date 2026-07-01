@@ -25,7 +25,41 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
+          let baseName = "";
+          let maxIndex = -1;
+
+          cookiesToSet.forEach(({ name }) => {
+            if (name.includes("-auth-token")) {
+              const match = name.match(/^(sb-.*-auth-token)(?:\.(\d+))?$/);
+              if (match) {
+                baseName = match[1];
+                if (match[2] !== undefined) {
+                  maxIndex = Math.max(maxIndex, parseInt(match[2], 10));
+                }
+              }
+            }
+          });
+
+          if (baseName) {
+            const allCookies = request.cookies.getAll();
+            allCookies.forEach((cookie) => {
+              if (cookie.name.startsWith(baseName)) {
+                const match = cookie.name.match(/^(sb-.*-auth-token)\.(\d+)$/);
+                if (match) {
+                  const index = parseInt(match[2], 10);
+                  if (index > maxIndex) {
+                    cookiesToSet.push({
+                      name: cookie.name,
+                      value: "",
+                      options: { maxAge: -1, path: "/" }
+                    });
+                  }
+                }
+              }
+            });
+          }
+
+          cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
           supabaseResponse = NextResponse.next({

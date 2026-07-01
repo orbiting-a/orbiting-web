@@ -864,6 +864,26 @@ export function subscribeToCalls(channelId: string, onCall: (call: { id: string;
   return { unsubscribe: () => { void channel.unsubscribe(); } };
 }
 
+export function subscribeToCallStatus(callId: string, onUpdate: (status: string) => void) {
+  const supabase = createClient();
+  const channel = supabase
+    .channel(`call-status-${callId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "calls",
+        filter: `id=eq.${callId}`,
+      },
+      (payload) => {
+        onUpdate(payload.new.status);
+      }
+    )
+    .subscribe();
+  return { unsubscribe: () => { void channel.unsubscribe(); } };
+}
+
 export async function getUnreadCounts() {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
