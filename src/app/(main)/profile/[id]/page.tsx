@@ -3,6 +3,7 @@
 import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Avatar, Button } from "@/components/ui";
+import { UserListModal } from "@/components/ui/UserListModal";
 import {
   Users,
   Settings,
@@ -38,12 +39,15 @@ export default function ProfilePage({
   const [amFollowing, setAmFollowing] = useState(false);
   const [activeTab, setActiveTab] = useState("Posts");
   const [loading, setLoading] = useState(true);
+  const [listModal, setListModal] = useState<"followers" | "following" | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
       const currentUser = await getCurrentUser();
 
+      if (currentUser) setCurrentUserId(currentUser.id);
       if (id === "me" && currentUser) {
         setIsOwnProfile(true);
         const p = await getProfile(currentUser.id);
@@ -85,8 +89,12 @@ export default function ProfilePage({
 
   const handleMessage = async () => {
     if (!profile) return;
-    const channel = await createDMChannel(profile.id);
-    if (channel) router.push(`/chat/${channel.id}`);
+    try {
+      const channel = await createDMChannel(profile.id);
+      if (channel) router.push(`/chat/${channel.id}`);
+    } catch (e) {
+      console.error("Failed to create DM:", e);
+    }
   };
 
   const handleEditProfile = () => {
@@ -132,18 +140,18 @@ export default function ProfilePage({
               </p>
               <p className="text-xs text-text-muted">Posts</p>
             </div>
-            <div className="text-center">
+            <button className="text-center hover:opacity-80 transition-opacity" onClick={() => setListModal("followers")}>
               <p className="text-lg font-bold text-text-primary">
                 {followers.length}
               </p>
               <p className="text-xs text-text-muted">Followers</p>
-            </div>
-            <div className="text-center">
+            </button>
+            <button className="text-center hover:opacity-80 transition-opacity" onClick={() => setListModal("following")}>
               <p className="text-lg font-bold text-text-primary">
                 {following.length}
               </p>
               <p className="text-xs text-text-muted">Following</p>
-            </div>
+            </button>
           </div>
 
           <div className="flex gap-3 mt-5 w-full max-w-xs">
@@ -285,6 +293,15 @@ export default function ProfilePage({
           <Heart className="h-10 w-10 text-text-muted mb-3" />
           <p className="text-sm text-text-muted">No liked posts yet</p>
         </div>
+      )}
+
+      {listModal && (
+        <UserListModal
+          title={listModal === "followers" ? "Followers" : "Following"}
+          users={listModal === "followers" ? followers : following}
+          onClose={() => setListModal(null)}
+          currentUserId={currentUserId || undefined}
+        />
       )}
     </div>
   );
