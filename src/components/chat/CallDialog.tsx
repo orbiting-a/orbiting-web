@@ -47,7 +47,7 @@ export function CallDialog({
       if (initRanRef.current) return;
       initRanRef.current = true;
       try {
-        const { createCall, updateCallStatus, sendCallSignal, subscribeToCallSignals } = await import("@/lib/supabase/queries");
+        const { createCall, updateCallStatus, sendCallSignal, subscribeToCallSignals, getCallSignals } = await import("@/lib/supabase/queries");
 
         pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
         pcRef.current = pc;
@@ -80,6 +80,22 @@ export function CallDialog({
         }
 
         if (!cid) throw new Error("No call ID");
+
+        if (!isCallerRole) {
+          const existing = await getCallSignals(cid);
+          for (const s of existing) {
+            if (s.sender_id === userId) continue;
+            if (s.type === "offer") {
+              await pc.setRemoteDescription(new RTCSessionDescription(s.payload as RTCSessionDescriptionInit));
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              await sendCallSignal(cid, "answer", answer);
+              setStatus("connected");
+            } else if (s.type === "ice-candidate") {
+              await pc.addIceCandidate(new RTCIceCandidate(s.payload as RTCIceCandidateInit)).catch(() => {});
+            }
+          }
+        }
 
         signalUnsub = subscribeToCallSignals(cid, async (signal) => {
           if ((signal as { sender_id?: string }).sender_id === userId) return;

@@ -787,6 +787,16 @@ export async function updateCallStatus(callId: string, status: string) {
   if (error) throw error;
 }
 
+export async function getCallSignals(callId: string) {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("call_signals")
+    .select("*")
+    .eq("call_id", callId)
+    .order("created_at", { ascending: true });
+  return (data ?? []) as { id: string; sender_id: string; type: string; payload: unknown }[];
+}
+
 export async function sendCallSignal(callId: string, type: string, payload: unknown) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
