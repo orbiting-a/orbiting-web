@@ -10,6 +10,7 @@ import { Globe, Lock, ArrowLeft, Image as ImageIcon, MapPin, Plus, X, Link2 } fr
 import { createOrbit, uploadMedia } from "@/lib/supabase/queries";
 import Link from "next/link";
 import { slugify } from "@/lib/utils";
+import { toast } from "sonner";
 
 const categories = [
   "Technology", "Music", "Gaming", "Art", "Sports",
@@ -131,10 +132,13 @@ export default function CreateOrbitPage() {
       });
 
       if (orbit) {
+        toast.success("Orbit created successfully!");
         router.push(`/orbit/${orbit.slug}`);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create orbit");
+      const msg = err instanceof Error ? err.message : "Failed to create orbit";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setCreating(false);
     }

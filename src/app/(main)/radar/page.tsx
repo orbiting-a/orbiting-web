@@ -6,6 +6,8 @@ import {
   getNearbyOrbits,
   getNearbyUsers,
   getNearbyEvents,
+  getCurrentUserProfile,
+  updateProfile,
 } from "@/lib/supabase/queries";
 import { ChakraFilter } from "@/components/radar/ChakraFilter";
 import { MapPin, Navigation, Loader2 } from "lucide-react";
@@ -72,39 +74,78 @@ export default function RadarPage() {
 
   // Get user location
   useEffect(() => {
-    if (!navigator.geolocation) {
-      setPermissionStatus("unsupported");
-      setLoading(false);
-      return;
-    }
-
-    if (navigator.permissions && navigator.permissions.query) {
-      navigator.permissions.query({ name: "geolocation" }).then((status) => {
-        setPermissionStatus(status.state);
-        status.onchange = () => {
-          setPermissionStatus(status.state);
-        };
-      });
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-        setUserLocation(coords);
-        setPosition(coords);
-        setPermissionStatus("granted");
-        setLoading(false);
-      },
-      (err) => {
-        if (err.code === err.PERMISSION_DENIED) {
-          setPermissionStatus("denied");
-        } else {
-          setLocationError("Using default location");
+    async function initLocation() {
+      // Pre-load profile location as a quick starting point/fallback
+      try {
+        const profile = await getCurrentUserProfile();
+        if (profile?.location) {
+          const loc = profile.location as { lat?: number; lng?: number };
+          if (loc.lat && loc.lng) {
+            const coords: [number, number] = [loc.lat, loc.lng];
+            setUserLocation(coords);
+            setPosition(coords);
+          }
         }
+      } catch (err) {
+        console.error("Failed loading profile fallback location", err);
+      }
+
+      if (!navigator.geolocation) {
+        setPermissionStatus("unsupported");
         setLoading(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+        return;
+      }
+
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: "geolocation" }).then((status) => {
+          setPermissionStatus(status.state);
+          status.onchange = () => {
+            setPermissionStatus(status.state);
+          };
+        });
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+          setUserLocation(coords);
+          setPosition(coords);
+          setPermissionStatus("granted");
+          setLoading(false);
+
+          // Save to user profile in background
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords[0]}&lon=${coords[1]}&addressdetails=1`)
+            .then((res) => res.json())
+            .then(async (data) => {
+              const city = data?.address?.city || data?.address?.town || data?.address?.village || "";
+              const country = data?.address?.country || "";
+              const profile = await getCurrentUserProfile();
+              if (profile) {
+                await updateProfile(profile.id, {
+                  location: {
+                    lat: coords[0],
+                    lng: coords[1],
+                    city,
+                    country,
+                  },
+                });
+              }
+            })
+            .catch((e) => console.error("Error geocoding & saving location:", e));
+        },
+        (err) => {
+          if (err.code === err.PERMISSION_DENIED) {
+            setPermissionStatus("denied");
+          } else {
+            setLocationError("Using default/profile location");
+          }
+          setLoading(false);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
+    initLocation();
   }, []);
 
   // Fetch nearby data
@@ -209,6 +250,26 @@ export default function RadarPage() {
                   setPosition(coords);
                   setPermissionStatus("granted");
                   setLoading(false);
+
+                  // Save to user profile in background
+                  fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords[0]}&lon=${coords[1]}&addressdetails=1`)
+                    .then((res) => res.json())
+                    .then(async (data) => {
+                      const city = data?.address?.city || data?.address?.town || data?.address?.village || "";
+                      const country = data?.address?.country || "";
+                      const profile = await getCurrentUserProfile();
+                      if (profile) {
+                        await updateProfile(profile.id, {
+                          location: {
+                            lat: coords[0],
+                            lng: coords[1],
+                            city,
+                            country,
+                          },
+                        });
+                      }
+                    })
+                    .catch((e) => console.error("Error geocoding & saving location:", e));
                 },
                 () => {
                   setPermissionStatus("denied");

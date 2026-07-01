@@ -84,8 +84,8 @@ export function RadarMap({
       overlaysRef.current.forEach((layer) => layer.remove());
       overlaysRef.current = [];
 
-      // Radius circle centered on search center
-      const circle = L.circle(center, {
+      // Radius circle centered on user location (or search center fallback)
+      const circle = L.circle(userLocation || center, {
         radius: radius * 1000,
         color: "#36BCCB",
         fillColor: "#36BCCB",

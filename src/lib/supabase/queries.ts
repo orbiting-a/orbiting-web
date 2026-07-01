@@ -13,6 +13,13 @@ export async function getProfile(userId: string) {
   return data as Profile | null;
 }
 
+export async function getCurrentUserProfile() {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  return getProfile(user.id);
+}
+
 
 
 export async function getProfileByUsername(username: string) {
@@ -120,18 +127,25 @@ export async function createOrbit(orbit: {
     slug = `${orbit.slug}-${Math.random().toString(36).slice(2, 6)}`;
   }
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("orbits")
     .insert({ ...orbit, slug, created_by: user.id })
     .select()
     .single();
 
+  if (error) {
+    throw new Error(error.message);
+  }
+
   if (data) {
-    await supabase.from("orbit_members").insert({
+    const { error: memberError } = await supabase.from("orbit_members").insert({
       orbit_id: data.id,
       user_id: user.id,
       role: "owner",
     });
+    if (memberError) {
+      throw new Error(memberError.message);
+    }
   }
 
   return data as Orbit | null;
