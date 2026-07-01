@@ -4,8 +4,12 @@ import type { Profile } from "@/types/database";
 
 export async function getCurrentUser() {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    return user;
+  } catch {
+    return null;
+  }
 }
 
 export async function getCurrentProfile(): Promise<Profile | null> {

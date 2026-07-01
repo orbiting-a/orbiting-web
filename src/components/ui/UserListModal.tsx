@@ -30,7 +30,13 @@ export function UserListModal({ title, users, onClose, currentUserId, onRemove }
             users.map((u) => (
               <div key={u.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-raised transition-colors group">
                 <Link href={`/profile/${u.id}`} className="flex items-center gap-3 flex-1 min-w-0">
-                  <Image src={u.avatar_url || ""} alt="" width={36} height={36} className="h-9 w-9 rounded-full object-cover bg-surface-raised" unoptimized />
+                  {u.avatar_url ? (
+                    <Image src={u.avatar_url} alt="" width={36} height={36} className="h-9 w-9 rounded-full object-cover bg-surface-raised" unoptimized />
+                  ) : (
+                    <div className="h-9 w-9 rounded-full bg-brand-400/20 flex items-center justify-center text-xs font-bold text-brand-400 shrink-0">
+                      {(u.display_name || u.username || "?")[0].toUpperCase()}
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-text-primary truncate">{u.display_name || u.username}</p>
                     <p className="text-xs text-text-muted truncate">@{u.username}</p>

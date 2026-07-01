@@ -18,6 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://orbiting-web.vercel.app"),
   title: {
     default: "Orbiting — Communities That Move With You",
     template: "%s | Orbiting",
