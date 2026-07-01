@@ -28,7 +28,7 @@ export function MessageList({
 
   if (loading) {
     return (
-      <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+      <div className="flex-1 min-h-0 p-4 space-y-4 overflow-y-auto">
         {[1, 2, 3].map((i) => (
           <div key={i} className={`flex gap-3 ${i % 2 === 0 ? "flex-row-reverse" : ""}`}>
             <div className="h-8 w-8 rounded-full bg-border-subtle animate-pulse shrink-0" />
@@ -58,7 +58,7 @@ export function MessageList({
   const lastOwnMsgId = lastOwnMsgIdx !== -1 ? messages[messages.length - 1 - lastOwnMsgIdx].id : null;
 
   return (
-    <div className="flex-1 p-4 space-y-2 overflow-y-auto">
+    <div className="flex-1 min-h-0 p-4 space-y-2 overflow-y-auto">
       {messages.map((msg) => {
         const isOwn = msg.sender_id === currentUserId;
         const showReadReceipt = isOwn && msg.id === lastOwnMsgId;

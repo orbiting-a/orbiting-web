@@ -192,7 +192,7 @@ export function ChatInput({
   const isAudio = filePreview?.type.startsWith("audio/");
 
   return (
-    <div className="border-t border-border p-4 relative">
+    <div className="shrink-0 border-t border-border p-4 relative">
       {showEmoji && (
         <div
           ref={emojiRef}
