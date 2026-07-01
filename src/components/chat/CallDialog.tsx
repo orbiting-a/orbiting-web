@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { PhoneOff, Mic, MicOff, Video, VideoOff } from "lucide-react";
+import { PhoneOff, Mic, MicOff, Video, VideoOff, Camera, CameraOff } from "lucide-react";
 
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.cloudflare.com:3478" },
@@ -13,18 +13,18 @@ export function CallDialog({
   userId,
   otherUserId,
   otherUserName,
-  callType,
+  initialType,
   onEnd,
 }: {
   channelId: string;
   userId: string;
   otherUserId: string;
   otherUserName: string;
-  callType: "audio" | "video";
+  initialType: "audio" | "video";
   onEnd: () => void;
 }) {
   const [muted, setMuted] = useState(false);
-  const [videoOff, setVideoOff] = useState(callType === "audio");
+  const [videoEnabled, setVideoEnabled] = useState(initialType === "video");
   const [callId, setCallId] = useState<string | null>(null);
   const [status, setStatus] = useState("connecting");
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -32,29 +32,31 @@ export function CallDialog({
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
 
-  // Create call + setup peer connection
   useEffect(() => {
     let pc: RTCPeerConnection;
     let localStream: MediaStream;
     let signalUnsub: { unsubscribe: () => void } | null = null;
-    let callUnsub: { unsubscribe: () => void } | null = null;
+    let isCaller = false;
 
     async function init() {
       try {
-        // Import call functions dynamically to avoid circular deps
         const { createCall, updateCallStatus, sendCallSignal, subscribeToCallSignals, subscribeToCalls } = await import("@/lib/supabase/queries");
 
         pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
         pcRef.current = pc;
 
         localStream = await navigator.mediaDevices.getUserMedia({
-          video: callType === "video",
+          video: videoEnabled,
           audio: { echoCancellation: true, noiseSuppression: true },
         });
         localStreamRef.current = localStream;
-        if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
 
-        localStream.getTracks().forEach((track) => pc.addTrack(track, localStream!));
+        const tracks = localStream.getTracks();
+        tracks.forEach((track) => pc.addTrack(track, localStream!));
+
+        if (localVideoRef.current && videoEnabled) {
+          localVideoRef.current.srcObject = localStream;
+        }
 
         pc.ontrack = (event) => {
           if (remoteVideoRef.current && event.streams[0]) {
@@ -62,29 +64,19 @@ export function CallDialog({
           }
         };
 
-        // Create the call in DB
-        const call = await createCall(channelId, otherUserId, callType);
+        const call = await createCall(channelId, otherUserId, initialType);
         setCallId(call.id);
+        isCaller = true;
 
-        // Subscribe to incoming signals
         signalUnsub = subscribeToCallSignals(call.id, async (signal) => {
           if (signal.type === "answer") {
             await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
+            setStatus("connected");
           } else if (signal.type === "ice-candidate") {
             await pc.addIceCandidate(new RTCIceCandidate(signal.payload as RTCIceCandidateInit));
           }
         });
 
-        // Listen for the other side to join
-        callUnsub = subscribeToCalls(channelId, async () => {
-          // The callee has joined - we're the caller, create offer
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          await sendCallSignal(call.id, "offer", offer);
-          setStatus("ringing");
-        });
-
-        // ICE candidate handler
         pc.onicecandidate = (event) => {
           if (event.candidate && call.id) {
             sendCallSignal(call.id, "ice-candidate", event.candidate.toJSON()).catch(() => {});
@@ -96,26 +88,15 @@ export function CallDialog({
             setStatus("connected");
             updateCallStatus(call.id, "connected").catch(() => {});
           } else if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
-            setStatus("ended");
             updateCallStatus(call.id, "ended").catch(() => {});
             setTimeout(onEnd, 1000);
           }
         };
 
-        setCallId(call.id);
-
-        // For the callee: wait for offer
-        const calleeSignalUnsub = subscribeToCallSignals(call.id, async (signal) => {
-          if (signal.type === "offer") {
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            await sendCallSignal(call.id, "answer", answer);
-            setStatus("connected");
-          }
-        });
-
-        signalUnsub = calleeSignalUnsub;
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await sendCallSignal(call.id, "offer", offer);
+        setStatus("ringing");
 
       } catch (e) {
         console.error("Call init failed", e);
@@ -127,21 +108,37 @@ export function CallDialog({
 
     return () => {
       signalUnsub?.unsubscribe();
-      callUnsub?.unsubscribe();
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       pcRef.current?.close();
     };
-  }, [channelId, userId, otherUserId, callType, onEnd]);
+  }, [channelId, userId, otherUserId, initialType]);
 
   const toggleMute = () => {
     localStreamRef.current?.getAudioTracks().forEach((t) => { t.enabled = muted; });
     setMuted(!muted);
   };
 
-  const toggleVideo = () => {
-    const newState = !videoOff;
-    setVideoOff(newState);
-    localStreamRef.current?.getVideoTracks().forEach((t) => { t.enabled = !newState; });
+  const toggleVideo = async () => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+
+    if (videoEnabled) {
+      stream.getVideoTracks().forEach((t) => { t.stop(); stream.removeTrack(t); });
+      const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === "video");
+      if (sender) pcRef.current?.removeTrack(sender);
+      setVideoEnabled(false);
+    } else {
+      try {
+        const videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        const vidTrack = videoStream.getVideoTracks()[0];
+        stream.addTrack(vidTrack);
+        pcRef.current?.addTrack(vidTrack, stream);
+        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+        setVideoEnabled(true);
+      } catch {
+        // camera permission denied
+      }
+    }
   };
 
   const endCall = async () => {
@@ -155,7 +152,7 @@ export function CallDialog({
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       <div className="flex-1 relative flex items-center justify-center p-4">
-        {callType === "video" ? (
+        {videoEnabled ? (
           <>
             <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
             <video ref={localVideoRef} autoPlay playsInline muted className="absolute top-4 right-4 w-32 h-48 rounded-2xl object-cover bg-surface-raised border-2 border-white/20 shadow-lg" />
@@ -178,25 +175,22 @@ export function CallDialog({
       <div className="flex items-center justify-center gap-6 pb-12 pt-6">
         <button
           onClick={toggleMute}
-          className={`p-4 rounded-full transition-colors ${
-            muted ? "bg-red-500 text-white" : "bg-white/10 text-white hover:bg-white/20"
-          }`}
+          className={`p-4 rounded-full transition-colors ${muted ? "bg-red-500 text-white" : "bg-white/10 text-white hover:bg-white/20"}`}
         >
           {muted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
         </button>
+
         <button onClick={endCall} className="p-4 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors">
           <PhoneOff className="h-6 w-6" />
         </button>
-        {callType === "video" && (
-          <button
-            onClick={toggleVideo}
-            className={`p-4 rounded-full transition-colors ${
-              videoOff ? "bg-red-500 text-white" : "bg-white/10 text-white hover:bg-white/20"
-            }`}
-          >
-            {videoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
-          </button>
-        )}
+
+        <button
+          onClick={toggleVideo}
+          className={`p-4 rounded-full transition-colors ${videoEnabled ? "bg-white/10 text-white hover:bg-white/20" : "bg-white/10 text-white hover:bg-white/20"}`}
+          title={videoEnabled ? "Turn off camera" : "Turn on camera"}
+        >
+          {videoEnabled ? <Video className="h-6 w-6" /> : <Camera className="h-6 w-6" />}
+        </button>
       </div>
     </div>
   );

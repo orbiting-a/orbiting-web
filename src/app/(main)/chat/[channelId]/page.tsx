@@ -219,7 +219,16 @@ export default function ChannelPage({
             <p className="font-semibold text-text-primary text-sm truncate">
               {title}
             </p>
-            <p className="text-xs text-text-muted truncate">{subtitle}</p>
+            <p className="text-xs text-text-muted truncate">
+              {callActive ? (
+                <span className="flex items-center gap-1 text-green-500">
+                  <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                  Call active
+                </span>
+              ) : (
+                subtitle
+              )}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0 relative">
@@ -289,7 +298,7 @@ export default function ChannelPage({
           userId={currentUserId || ""}
           otherUserId={otherMembers[0]?.id || ""}
           otherUserName={otherMembers[0]?.display_name || otherMembers[0]?.username || "User"}
-          callType={callActive}
+          initialType={callActive}
           onEnd={() => setCallActive(null)}
         />
       )}
