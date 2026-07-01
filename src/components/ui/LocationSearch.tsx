@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { MapPin, Search, Loader2 } from "lucide-react";
+import { MapPin, Search, Loader2, Map as MapIcon } from "lucide-react";
+import { MapPickerModal, MapPickerResult } from "./MapPickerModal";
 
 export interface LocationResult {
   lat: number;
@@ -22,12 +23,18 @@ export function LocationSearch({ value, onChange, placeholder = "Search for a pl
   const [results, setResults] = useState<LocationResult[]>([]);
   const [open, setOpen] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Keep query in sync with external value changes
+  useEffect(() => {
+    setQuery(value?.displayName || "");
+  }, [value]);
+
   useEffect(() => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    if (!query || query.length < 3) {
+    if (!query || query.length < 3 || query === value?.displayName) {
       setResults([]);
       setOpen(false);
       return;
@@ -55,7 +62,7 @@ export function LocationSearch({ value, onChange, placeholder = "Search for a pl
       setSearching(false);
     }, 350);
     return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
-  }, [query]);
+  }, [query, value]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -78,6 +85,11 @@ export function LocationSearch({ value, onChange, placeholder = "Search for a pl
     setOpen(false);
   };
 
+  const handleMapConfirm = (res: MapPickerResult) => {
+    setQuery(res.displayName);
+    onChange(res);
+  };
+
   return (
     <div ref={ref} className="relative">
       <div className="relative">
@@ -87,14 +99,26 @@ export function LocationSearch({ value, onChange, placeholder = "Search for a pl
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={placeholder}
-          className="w-full rounded-xl bg-surface-raised border border-border-subtle pl-9 pr-8 py-2.5 text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+          className="w-full rounded-xl bg-surface-raised border border-border-subtle pl-9 pr-20 py-2.5 text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-brand-500/40 text-text-primary"
         />
-        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
           {searching ? (
             <Loader2 className="h-4 w-4 animate-spin text-text-muted" />
-          ) : value ? (
-            <button type="button" onClick={clear} className="text-text-muted hover:text-text-primary text-xs">✕</button>
-          ) : null}
+          ) : (
+            <>
+              {value && (
+                <button type="button" onClick={clear} className="text-text-muted hover:text-text-primary text-xs mr-1">✕</button>
+              )}
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                className="text-brand-400 hover:text-brand-500 transition-colors p-1"
+                title="Choose on map"
+              >
+                <MapIcon className="h-4 w-4" />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -122,6 +146,13 @@ export function LocationSearch({ value, onChange, placeholder = "Search for a pl
           </span>
         </div>
       )}
+
+      <MapPickerModal
+        isOpen={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onConfirm={handleMapConfirm}
+        initialLocation={value ? { lat: value.lat, lng: value.lng } : null}
+      />
     </div>
   );
 }

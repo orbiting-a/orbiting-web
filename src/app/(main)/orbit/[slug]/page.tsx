@@ -433,7 +433,7 @@ export default function OrbitPage({
         <div className="space-y-3">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-lg font-bold text-text-primary">Upcoming Events</h2>
-            <Link href="/create-activity">
+            <Link href={`/orbit/${orbit.slug}/events/create`}>
               <Button variant="primary" size="sm">Create Event</Button>
             </Link>
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState, useEffect, useCallback, useRef } from "react";
+import { useChatStore } from "@/lib/chat-store";
 import { Avatar } from "@/components/ui";
 import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
@@ -21,7 +22,6 @@ import {
   subscribeToCalls,
   deleteMessage,
   deleteMessageForEveryone,
-  markChannelRead,
   leaveChannel,
   endCallWithLog,
   updateCallStatus,
@@ -46,6 +46,10 @@ export default function ChannelPage({
   const [callActive, setCallActive] = useState<{ type: "audio" | "video"; callId?: string; isCaller?: boolean } | null>(null);
   const [incomingCall, setIncomingCall] = useState<{ type: "audio" | "video"; callId: string; callerId: string; callerName: string } | null>(null);
   const membersRef = useRef<Profile[]>([]);
+
+  // Typing status state
+  const [typingUsers, setTypingUsers] = useState<Record<string, { username: string; expiresAt: number }>>({});
+  const typingChannelRef = useRef<any>(null);
 
   useEffect(() => {
     if (!channelId || channelId === "undefined") {
@@ -74,8 +78,8 @@ export default function ChannelPage({
           getChannelMembers(channelId),
         ]);
         setMessages(msgs.map((m) => m.sender_id !== currentUserId ? { ...m, is_read: true } : m));
-        // Mark as read immediately
-        if (currentUserId) markChannelRead(channelId).catch(() => {});
+        // Mark as read immediately via store
+        useChatStore.getState().markRead(channelId).catch(() => {});
         setMembers(mems);
         membersRef.current = mems;
       } catch {
@@ -84,16 +88,16 @@ export default function ChannelPage({
       setLoading(false);
     }
     load();
-  }, [channelId, router]);
+  }, [channelId, currentUserId, router]);
 
   useEffect(() => {
     if (!channelId || channelId === "undefined") return;
     const sub = subscribeToMessages(channelId, (msg) => {
       setMessages((prev) => {
         if (prev.some((m) => m.id === msg.id)) return prev;
-        // Auto-mark incoming messages as read
+        // Auto-mark incoming messages as read via store
         if (currentUserId && msg.sender_id !== currentUserId) {
-          markChannelRead(channelId);
+          useChatStore.getState().markRead(channelId).catch(() => {});
           return [...prev, { ...msg, is_read: true }];
         }
         return [...prev, msg];
@@ -101,6 +105,65 @@ export default function ChannelPage({
     });
     return () => { void sub.unsubscribe(); };
   }, [channelId, currentUserId]);
+
+  // Typing indicators subscription
+  useEffect(() => {
+    if (!channelId || channelId === "undefined" || !currentUserId) return;
+    const { createClient } = require("@/lib/supabase/client");
+    const supabase = createClient();
+
+    const channel = supabase.channel(`typing-${channelId}`);
+    typingChannelRef.current = channel;
+
+    channel
+      .on("broadcast", { event: "typing" }, (payload: any) => {
+        const { userId, username, isTyping } = payload.payload;
+        if (userId === currentUserId) return;
+
+        setTypingUsers((prev) => {
+          const next = { ...prev };
+          if (isTyping) {
+            next[userId] = { username, expiresAt: Date.now() + 4000 };
+          } else {
+            delete next[userId];
+          }
+          return next;
+        });
+      })
+      .subscribe();
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setTypingUsers((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        Object.keys(next).forEach((key) => {
+          if (next[key].expiresAt < now) {
+            delete next[key];
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    }, 1000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      typingChannelRef.current = null;
+      clearInterval(interval);
+    };
+  }, [channelId, currentUserId]);
+
+  const handleTyping = useCallback((isTyping: boolean) => {
+    if (!typingChannelRef.current || !currentUserId) return;
+    const me = membersRef.current.find((m) => m.id === currentUserId);
+    const username = me?.display_name || me?.username || "Someone";
+    typingChannelRef.current.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { userId: currentUserId, username, isTyping },
+    });
+  }, [currentUserId]);
 
   // Listen for message updates (read receipts sync)
   useEffect(() => {
@@ -338,8 +401,29 @@ export default function ChannelPage({
         onDeleteForEveryone={handleDeleteForEveryone}
       />
 
+      {/* Typing Indicators */}
+      {Object.keys(typingUsers).length > 0 && (
+        <div className="px-4 py-1.5 text-xs text-text-muted italic flex items-center gap-1.5 bg-surface-raised/30 border-t border-border-subtle">
+          <span className="flex gap-1 shrink-0">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-bounce" />
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-bounce [animation-delay:0.2s]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-bounce [animation-delay:0.4s]" />
+          </span>
+          <span>
+            {Object.values(typingUsers)
+              .map((u) => u.username)
+              .join(", ")}{" "}
+            {Object.keys(typingUsers).length === 1 ? "is typing..." : "are typing..."}
+          </span>
+        </div>
+      )}
+
       {/* Input */}
-      <ChatInput onSend={handleSend} onSendFile={handleSendFile} />
+      <ChatInput
+        onSend={handleSend}
+        onSendFile={handleSendFile}
+        onTyping={handleTyping}
+      />
 
       {incomingCall && (
         <IncomingCall

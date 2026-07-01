@@ -29,25 +29,21 @@ export function PresenceProviderInner({ children }: { children: React.ReactNode 
         const supabase = createClient();
         const channel = supabase.channel(ONLINE_CHANNEL);
 
-        channel.on("presence", { event: "sync" }, () => {
+        const updateOnlineUsers = () => {
           if (destroyed) return;
           const state = channel.presenceState();
-          setOnlineUsers(new Set(Object.keys(state)));
-        });
-
-        channel.on("presence", { event: "join" }, ({ key }) => {
-          if (!destroyed) setOnlineUsers((prev) => new Set(prev).add(key));
-        });
-
-        channel.on("presence", { event: "leave" }, ({ key }) => {
-          if (!destroyed) {
-            setOnlineUsers((prev) => {
-              const next = new Set(prev);
-              next.delete(key);
-              return next;
+          const userIds = new Set<string>();
+          Object.values(state).forEach((presences: any) => {
+            presences.forEach((p: any) => {
+              if (p.user_id) userIds.add(p.user_id);
             });
-          }
-        });
+          });
+          setOnlineUsers(userIds);
+        };
+
+        channel.on("presence", { event: "sync" }, updateOnlineUsers);
+        channel.on("presence", { event: "join" }, updateOnlineUsers);
+        channel.on("presence", { event: "leave" }, updateOnlineUsers);
 
         channel.subscribe(async (status) => {
           if (status === "SUBSCRIBED" && !destroyed) {

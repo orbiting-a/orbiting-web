@@ -81,18 +81,39 @@ export function CallDialog({
 
         if (!cid) throw new Error("No call ID");
 
+        const iceCandidateQueue: RTCIceCandidateInit[] = [];
+
+        const addIce = async (candidate: RTCIceCandidateInit) => {
+          if (pc.remoteDescription && pc.remoteDescription.type) {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
+          } else {
+            iceCandidateQueue.push(candidate);
+          }
+        };
+
+        const processIceQueue = async () => {
+          while (iceCandidateQueue.length > 0) {
+            const candidate = iceCandidateQueue.shift();
+            if (candidate) {
+              await pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
+            }
+          }
+        };
+
         if (!isCallerRole) {
           const existing = await getCallSignals(cid);
           for (const s of existing) {
             if (s.sender_id === userId) continue;
             if (s.type === "offer") {
+              if (pc.remoteDescription) continue;
               await pc.setRemoteDescription(new RTCSessionDescription(s.payload as RTCSessionDescriptionInit));
               const answer = await pc.createAnswer();
               await pc.setLocalDescription(answer);
               await sendCallSignal(cid, "answer", answer);
               setStatus("connected");
+              await processIceQueue();
             } else if (s.type === "ice-candidate") {
-              await pc.addIceCandidate(new RTCIceCandidate(s.payload as RTCIceCandidateInit)).catch(() => {});
+              await addIce(s.payload as RTCIceCandidateInit);
             }
           }
         }
@@ -101,16 +122,20 @@ export function CallDialog({
           if ((signal as { sender_id?: string }).sender_id === userId) return;
 
           if (signal.type === "offer" && !isCallerRole) {
+            if (pc.remoteDescription) return;
             await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             await sendCallSignal(cid!, "answer", answer);
             setStatus("connected");
+            await processIceQueue();
           } else if (signal.type === "answer" && isCallerRole) {
+            if (pc.remoteDescription) return;
             await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
             setStatus("connected");
+            await processIceQueue();
           } else if (signal.type === "ice-candidate") {
-            await pc.addIceCandidate(new RTCIceCandidate(signal.payload as RTCIceCandidateInit)).catch(() => {});
+            await addIce(signal.payload as RTCIceCandidateInit);
           }
         });
 
@@ -136,7 +161,9 @@ export function CallDialog({
           await sendCallSignal(cid, "offer", offer);
           setStatus("ringing");
         } else {
-          setStatus("connecting");
+          if (!pc.remoteDescription) {
+            setStatus("connecting");
+          }
         }
 
       } catch (e) {
@@ -150,6 +177,7 @@ export function CallDialog({
     init();
 
     return () => {
+      initRanRef.current = false;
       signalUnsub?.unsubscribe();
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       pcRef.current?.close();

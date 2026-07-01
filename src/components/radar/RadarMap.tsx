@@ -20,11 +20,13 @@ export function RadarMap({
   center,
   radius,
   onCenterChange,
+  userLocation,
 }: {
   markers: MarkerData[];
   center: [number, number];
   radius: number;
   onCenterChange?: (lat: number, lng: number) => void;
+  userLocation: [number, number] | null;
 }) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
@@ -81,9 +83,8 @@ export function RadarMap({
       // Clear old overlays
       overlaysRef.current.forEach((layer) => layer.remove());
       overlaysRef.current = [];
-      const layers: ReturnType<typeof L.layerGroup>[] = [];
 
-      // Radius circle
+      // Radius circle centered on search center
       const circle = L.circle(center, {
         radius: radius * 1000,
         color: "#36BCCB",
@@ -95,20 +96,28 @@ export function RadarMap({
       circle.addTo(map);
       overlaysRef.current.push(circle);
 
-      // User location marker (distinct from regular markers)
-      const userIcon = L.divIcon({
-        className: "",
-        html: `<div style="position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center">
-          <div style="position:absolute;width:40px;height:40px;border-radius:50%;background:rgba(54,188,203,0.15);animation:pulse-ring 2s infinite"/>
-          <div style="position:absolute;width:24px;height:24px;border-radius:50%;background:rgba(54,188,203,0.25);animation:pulse-ring 2s infinite 0.5s"/>
-          <div style="width:12px;height:12px;border-radius:50%;background:#36BCCB;border:2.5px solid white;box-shadow:0 0 12px rgba(54,188,203,0.6)"/>
-        </div>`,
-        iconSize: [40, 40],
-        iconAnchor: [20, 20],
-      });
-      const userMarker = L.marker(center, { icon: userIcon, zIndexOffset: 1000 });
-      userMarker.addTo(map);
-      overlaysRef.current.push(userMarker);
+      // User location marker (distinct from regular markers, placed at userLocation)
+      if (userLocation) {
+        const userIcon = L.divIcon({
+          className: "",
+          html: `<div style="position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center">
+            <div style="position:absolute;width:40px;height:40px;border-radius:50%;background:rgba(54,188,203,0.15);animation:pulse-ring 2s infinite"/>
+            <div style="position:absolute;width:24px;height:24px;border-radius:50%;background:rgba(54,188,203,0.25);animation:pulse-ring 2s infinite 0.5s"/>
+            <div style="width:12px;height:12px;border-radius:50%;background:#36BCCB;border:2.5px solid white;box-shadow:0 0 12px rgba(54,188,203,0.6)"/>
+          </div>`,
+          iconSize: [40, 40],
+          iconAnchor: [20, 20],
+        });
+        const userMarker = L.marker(userLocation, { icon: userIcon, zIndexOffset: 1000 });
+        userMarker.bindPopup(`
+          <div style="min-width: 100px; text-align: center;">
+            <h3 style="font-weight: 700; font-size: 13px; margin: 0 0 2px; color: #36BCCB;">You are here</h3>
+            <p style="font-size: 11px; color: #666; margin: 0;">Your real-time location</p>
+          </div>
+        `);
+        userMarker.addTo(map);
+        overlaysRef.current.push(userMarker);
+      }
 
       // Markers
       const colors: Record<string, string> = {

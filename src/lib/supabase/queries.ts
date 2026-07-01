@@ -694,12 +694,12 @@ export async function getChannelLastMessage(channelId: string) {
   const supabase = createClient();
   const { data } = await supabase
     .from("messages")
-    .select("content, created_at")
+    .select("content, media_url, created_at")
     .eq("channel_id", channelId)
     .order("created_at", { ascending: false })
     .limit(1)
     .single();
-  return data as { content: string | null; created_at: string } | null;
+  return data as { content: string | null; media_url: string | null; created_at: string } | null;
 }
 
 export async function getChannelMembers(channelId: string) {
@@ -1170,14 +1170,36 @@ export async function getNearbyOrbits(lat: number, lng: number, radiusKm: number
 
 export async function getNearbyUsers(lat: number, lng: number, radiusKm: number) {
   const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const currentUserId = user?.id;
+
+  let followingIds: string[] = [];
+  if (currentUserId) {
+    const { data: follows } = await supabase
+      .from("follows")
+      .select("following_id")
+      .eq("follower_id", currentUserId);
+    if (follows) {
+      followingIds = follows.map((f: any) => f.following_id);
+    }
+  }
+
   const { data } = await supabase
     .from("profiles")
-    .select("id, username, display_name, avatar_url, location")
+    .select("id, username, display_name, avatar_url, location, location_privacy")
     .not("location", "is", null)
-    .limit(50);
+    .limit(100);
 
   if (!data) return [];
   return data.filter((p) => {
+    if (p.id === currentUserId) return true;
+
+    const privacy = p.location_privacy || "Everyone";
+    if (privacy === "Nobody") return false;
+    if (privacy === "Followers") {
+      if (!currentUserId || !followingIds.includes(p.id)) return false;
+    }
+
     const loc = p.location as { lat?: number; lng?: number } | null;
     if (!loc?.lat || !loc?.lng) return false;
     return haversineDistance(lat, lng, loc.lat, loc.lng) <= radiusKm;
@@ -1222,18 +1244,115 @@ export async function getEvent(id: string) {
   return data as (OrbitEvent & { profiles: Profile; orbits: Pick<Orbit, "name" | "slug" | "logo_url"> }) | null;
 }
 
+export async function createEvent(event: {
+  orbit_id: string;
+  title: string;
+  description?: string;
+  starts_at: string;
+  ends_at?: string | null;
+  location?: any;
+  cover_url?: string | null;
+}) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { data, error } = await supabase
+    .from("events")
+    .insert({
+      ...event,
+      created_by: user.id,
+      attendee_count: 1,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  try {
+    await supabase.from("event_attendees").insert({
+      event_id: data.id,
+      user_id: user.id,
+    });
+  } catch {
+    // Ignore error
+  }
+
+  return data as OrbitEvent;
+}
+
 export async function rsvpEvent(eventId: string) {
   const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from("event_attendees")
+    .insert({ event_id: eventId, user_id: user.id });
+
+  if (error) {
+    if (error.code === "23505") {
+      return { rsvpd: true };
+    }
+    throw error;
+  }
+
   const { data: event } = await supabase.from("events").select("attendee_count").eq("id", eventId).single();
-  if (!event) return { rsvpd: false };
-  await supabase.from("events").update({
-    attendee_count: (event.attendee_count || 0) + 1,
-  }).eq("id", eventId);
+  if (event) {
+    await supabase.from("events").update({
+      attendee_count: (event.attendee_count || 0) + 1,
+    }).eq("id", eventId);
+  }
+
   return { rsvpd: true };
 }
 
-export async function hasRsvpd(_eventId: string) {
-  return false;
+export async function cancelRsvpEvent(eventId: string) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from("event_attendees")
+    .delete()
+    .eq("event_id", eventId)
+    .eq("user_id", user.id);
+
+  if (error) throw error;
+
+  const { data: event } = await supabase.from("events").select("attendee_count").eq("id", eventId).single();
+  if (event && (event.attendee_count || 0) > 0) {
+    await supabase.from("events").update({
+      attendee_count: event.attendee_count - 1,
+    }).eq("id", eventId);
+  }
+
+  return { rsvpd: false };
+}
+
+export async function hasRsvpd(eventId: string) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { data } = await supabase
+    .from("event_attendees")
+    .select("id")
+    .eq("event_id", eventId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  return !!data;
+}
+
+export async function getEventAttendees(eventId: string) {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("event_attendees")
+    .select("*, profiles(*)")
+    .eq("event_id", eventId);
+
+  return (data || []).map((d: any) => d.profiles).filter(Boolean) as Profile[];
 }
 
 // ===== POLLS =====

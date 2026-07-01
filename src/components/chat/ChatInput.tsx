@@ -15,9 +15,11 @@ const EMOJIS = [
 export function ChatInput({
   onSend,
   onSendFile,
+  onTyping,
 }: {
   onSend: (content: string) => void;
   onSendFile?: (file: File) => void;
+  onTyping?: (isTyping: boolean) => void;
 }) {
   const [content, setContent] = useState("");
   const [sending, setSending] = useState(false);
@@ -35,6 +37,33 @@ export function ChatInput({
   const chunksRef = useRef<Blob[]>([] as Blob[]);
   const recordTimerRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
+  // Typing status logic
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [isTypingState, setIsTypingState] = useState(false);
+
+  const handleContentChange = (val: string) => {
+    setContent(val);
+    if (!isTypingState && val.trim().length > 0) {
+      setIsTypingState(true);
+      onTyping?.(true);
+    }
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+    typingTimeoutRef.current = setTimeout(() => {
+      setIsTypingState(false);
+      onTyping?.(false);
+    }, 2000);
+  };
+
+  // Textarea auto-resize
+  useEffect(() => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 128)}px`;
+  }, [content]);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) {
@@ -46,12 +75,22 @@ export function ChatInput({
   }, []);
 
   useEffect(() => {
-    return () => clearInterval(recordTimerRef.current);
+    return () => {
+      clearInterval(recordTimerRef.current);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
   }, []);
 
   const handleSend = async () => {
     if ((!content.trim() && !filePreview) || sending) return;
     setSending(true);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    setIsTypingState(false);
+    onTyping?.(false);
+
     if (filePreview) {
       await onSendFile?.(filePreview);
       setFilePreview(null);
@@ -68,6 +107,21 @@ export function ChatInput({
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          setFilePreview(file);
+          e.preventDefault();
+          break;
+        }
+      }
     }
   };
 
@@ -255,8 +309,9 @@ export function ChatInput({
           <textarea
             ref={inputRef}
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={(e) => handleContentChange(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder="Type a message..."
             rows={1}
             className="w-full rounded-xl bg-surface-raised border border-border-subtle px-4 py-2.5 text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-brand-500/40 resize-none max-h-32 disabled:opacity-50"

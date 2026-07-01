@@ -23,7 +23,8 @@
     "react-leaflet": "^5.0.0",
     "sonner": "^2.0.7",
     "viem": "^2.54.0",
-    "wagmi": "^3.6.21"
+    "wagmi": "^3.6.21",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

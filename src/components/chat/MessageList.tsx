@@ -54,11 +54,14 @@ export function MessageList({
     );
   }
 
+  const lastOwnMsgIdx = [...messages].reverse().findIndex((m) => m.sender_id === currentUserId);
+  const lastOwnMsgId = lastOwnMsgIdx !== -1 ? messages[messages.length - 1 - lastOwnMsgIdx].id : null;
+
   return (
     <div className="flex-1 p-4 space-y-2 overflow-y-auto">
-      {messages.map((msg, idx) => {
+      {messages.map((msg) => {
         const isOwn = msg.sender_id === currentUserId;
-        const showReadReceipt = isOwn && idx === messages.length - 1;
+        const showReadReceipt = isOwn && msg.id === lastOwnMsgId;
         return (
           <MessageBubble key={msg.id} msg={msg} isOwn={isOwn}
             onDelete={onDelete} onDeleteForEveryone={onDeleteForEveryone}
