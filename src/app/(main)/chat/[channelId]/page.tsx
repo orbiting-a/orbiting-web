@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect, useCallback } from "react";
+import { use, useState, useEffect, useCallback, useRef } from "react";
 import { Avatar } from "@/components/ui";
 import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
@@ -45,6 +45,7 @@ export default function ChannelPage({
   const [menuOpen, setMenuOpen] = useState(false);
   const [callActive, setCallActive] = useState<{ type: "audio" | "video"; callId?: string; isCaller?: boolean } | null>(null);
   const [incomingCall, setIncomingCall] = useState<{ type: "audio" | "video"; callId: string; callerId: string; callerName: string } | null>(null);
+  const membersRef = useRef<Profile[]>([]);
 
   useEffect(() => {
     if (!channelId || channelId === "undefined") {
@@ -76,6 +77,7 @@ export default function ChannelPage({
         // Mark as read immediately
         if (currentUserId) markChannelRead(channelId).catch(() => {});
         setMembers(mems);
+        membersRef.current = mems;
       } catch {
       }
 
@@ -114,14 +116,13 @@ export default function ChannelPage({
     if (!channelId || channelId === "undefined") return;
     const sub = subscribeToCalls(channelId, (call) => {
       if (call.callee_id === currentUserId && (call.type === "audio" || call.type === "video")) {
-        // Find caller name
-        const caller = members.find((m) => m.id === call.caller_id);
+        const caller = membersRef.current.find((m) => m.id === call.caller_id);
         const callerName = caller?.display_name || caller?.username || "Someone";
         setIncomingCall({ type: call.type, callId: call.id, callerId: call.caller_id, callerName });
       }
     });
     return () => { sub.unsubscribe(); };
-  }, [channelId, currentUserId, members]);
+  }, [channelId, currentUserId]);
 
   const handleAnswerCall = useCallback(() => {
     if (!incomingCall) return;

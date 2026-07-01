@@ -35,6 +35,7 @@ export function CallDialog({
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const initRanRef = useRef(false);
 
   useEffect(() => {
     let pc: RTCPeerConnection;
@@ -43,6 +44,8 @@ export function CallDialog({
     const isCallerRole = isCaller;
 
     async function init() {
+      if (initRanRef.current) return;
+      initRanRef.current = true;
       try {
         const { createCall, updateCallStatus, sendCallSignal, subscribeToCallSignals } = await import("@/lib/supabase/queries");
 
