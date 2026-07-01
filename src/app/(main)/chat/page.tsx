@@ -12,6 +12,7 @@ import type { Profile } from "@/types/database";
 
 export default function ChatPage() {
   const router = useRouter();
+  const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [creating, setCreating] = useState<string | null>(null);
@@ -87,8 +88,24 @@ export default function ChatPage() {
           </div>
         )}
 
+        <div className="flex gap-2 px-4 pt-3 pb-1">
+          {["All", "DMs", "Groups"].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setFilter(tab)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                filter === tab
+                  ? "bg-brand-500 text-white"
+                  : "bg-surface-raised text-text-secondary border border-border-subtle hover:text-text-primary"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
         <div className="flex-1 overflow-y-auto">
-          <ChatList search="" />
+          <ChatList filter={filter} />
         </div>
       </div>
 

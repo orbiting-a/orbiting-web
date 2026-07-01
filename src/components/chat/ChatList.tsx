@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Avatar } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { getMyChannels, getChannelMembers } from "@/lib/supabase/queries";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Hash } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Channel, Profile } from "@/types/database";
 
-export function ChatList({ search = "" }: { search?: string }) {
+export function ChatList({ filter = "All" }: { filter?: string }) {
   const [conversations, setConversations] = useState<(Channel & { otherUser?: Profile })[]>([]);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
@@ -17,11 +17,14 @@ export function ChatList({ search = "" }: { search?: string }) {
   useEffect(() => {
     async function load() {
       const channels = await getMyChannels();
-      const dms = channels.filter((ch) => ch.type === "dm");
       const enriched: (Channel & { otherUser?: Profile })[] = [];
-      for (const ch of dms) {
-        const members = await getChannelMembers(ch.id);
-        enriched.push({ ...ch, otherUser: members[0] });
+      for (const ch of channels) {
+        if (ch.type === "dm") {
+          const members = await getChannelMembers(ch.id);
+          enriched.push({ ...ch, otherUser: members.length > 0 ? members[0] : undefined });
+        } else {
+          enriched.push(ch);
+        }
       }
       setConversations(enriched);
       setLoading(false);
@@ -29,12 +32,15 @@ export function ChatList({ search = "" }: { search?: string }) {
     load();
   }, []);
 
-  const filtered = search.trim()
-    ? conversations.filter((c) => {
-        const name = c.otherUser?.display_name || c.otherUser?.username || "";
-        return name.toLowerCase().includes(search.toLowerCase());
-      })
-    : conversations;
+  const filtered = useMemo(() => {
+    let result = conversations;
+    if (filter === "DMs") {
+      result = result.filter((ch) => ch.type === "dm");
+    } else if (filter === "Groups") {
+      result = result.filter((ch) => ch.type === "group" || ch.type === "orbit_channel");
+    }
+    return result;
+  }, [conversations, filter]);
 
   if (loading) {
     return (
@@ -57,7 +63,7 @@ export function ChatList({ search = "" }: { search?: string }) {
         <MessageCircle className="h-8 w-8 text-text-muted mb-2" />
         <p className="text-sm text-text-muted">No conversations yet</p>
         <p className="text-xs text-text-muted mt-1">
-          Search for someone above to start chatting
+          {filter === "All" ? "Search for someone above to start chatting" : `No ${filter.toLowerCase()} yet`}
         </p>
       </div>
     );
@@ -67,7 +73,13 @@ export function ChatList({ search = "" }: { search?: string }) {
     <div className="space-y-0.5 p-2">
       {filtered.map((ch) => {
         const isActive = pathname === `/chat/${ch.id}`;
-        const name = ch.otherUser?.display_name || ch.otherUser?.username || "Unknown";
+        const isDM = ch.type === "dm";
+        const name = isDM
+          ? (ch as Channel & { otherUser?: Profile }).otherUser?.display_name ||
+            (ch as Channel & { otherUser?: Profile }).otherUser?.username ||
+            "Unknown"
+          : ch.name || "Unnamed";
+
         return (
           <Link
             key={ch.id}
@@ -79,7 +91,17 @@ export function ChatList({ search = "" }: { search?: string }) {
                 : "text-text-secondary hover:text-text-primary hover:bg-surface-raised"
             )}
           >
-            <Avatar name={name} size="sm" src={ch.otherUser?.avatar_url} />
+            {isDM ? (
+              <Avatar
+                name={name}
+                size="sm"
+                src={(ch as Channel & { otherUser?: Profile }).otherUser?.avatar_url}
+              />
+            ) : (
+              <div className="h-8 w-8 rounded-full bg-brand-400/20 flex items-center justify-center">
+                <Hash className="h-4 w-4 text-brand-400" />
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <p className="font-medium truncate">{name}</p>
             </div>

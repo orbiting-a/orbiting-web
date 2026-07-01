@@ -9,9 +9,11 @@ export async function getProfile(userId: string) {
     .from("profiles")
     .select("*")
     .eq("id", userId)
-    .single();
+    .maybeSingle();
   return data as Profile | null;
 }
+
+
 
 export async function getProfileByUsername(username: string) {
   const supabase = createClient();
@@ -675,9 +677,10 @@ export async function getChannelMembers(channelId: string) {
 
 export async function getMessages(channelId: string, limit = 50) {
   const supabase = createClient();
+  if (!channelId || channelId === "undefined") return [];
   const { data } = await supabase
     .from("messages")
-    .select("*, profiles!messages_sender_id_fkey(*)")
+    .select("*, profiles!sender_id(*)")
     .eq("channel_id", channelId)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -688,12 +691,23 @@ export async function sendMessage(channelId: string, content: string) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
+  if (!channelId || channelId === "undefined") throw new Error("Invalid channel");
+
   const { data } = await supabase
     .from("messages")
     .insert({ channel_id: channelId, sender_id: user.id, content })
-    .select("*, profiles!messages_sender_id_fkey(*)")
+    .select()
     .single();
-  return data as (Message & { profiles: Profile }) | null;
+
+  if (!data) return null;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", data.sender_id)
+    .single();
+
+  return { ...data, profiles: profile } as Message & { profiles: Profile };
 }
 
 export function subscribeToMessages(
@@ -712,10 +726,11 @@ export function subscribeToMessages(
         filter: `channel_id=eq.${channelId}`,
       },
       (payload) => {
+        const msgId = (payload.new as { id: string }).id;
         supabase
           .from("messages")
-          .select("*, profiles!messages_sender_id_fkey(*)")
-          .eq("id", (payload.new as { id: string }).id)
+          .select("*, profiles!sender_id(*)")
+          .eq("id", msgId)
           .single()
           .then(({ data }) => {
             if (data) onMessage(data as Message & { profiles: Profile });

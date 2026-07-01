@@ -6,6 +6,7 @@ import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ArrowLeft, Phone, Video, MoreHorizontal } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   getChannel,
   getMessages,
@@ -23,6 +24,7 @@ export default function ChannelPage({
   params: Promise<{ channelId: string }>;
 }) {
   const { channelId } = use(params);
+  const router = useRouter();
   const [channel, setChannel] = useState<Channel | null>(null);
   const [messages, setMessages] = useState<(Message & { profiles: Profile })[]>([]);
   const [members, setMembers] = useState<Profile[]>([]);
@@ -30,23 +32,32 @@ export default function ChannelPage({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!channelId || channelId === "undefined") {
+      router.replace("/chat");
+      return;
+    }
     getCurrentUser().then((u) => u && setCurrentUserId(u.id));
-  }, []);
+  }, [channelId, router]);
 
   useEffect(() => {
+    if (!channelId || channelId === "undefined") return;
     async function load() {
       const [ch, msgs, mems] = await Promise.all([
         getChannel(channelId),
         getMessages(channelId),
         getChannelMembers(channelId),
       ]);
+      if (!ch) {
+        router.replace("/chat");
+        return;
+      }
       setChannel(ch);
       setMessages(msgs);
       setMembers(mems);
       setLoading(false);
     }
     load();
-  }, [channelId]);
+  }, [channelId, router]);
 
   useEffect(() => {
     const sub = subscribeToMessages(channelId, (msg) => {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui";
+import { useUser } from "@/components/providers/UserProvider";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import {
   Search,
@@ -19,6 +20,7 @@ import { getUnreadCount, subscribeToNotifications } from "@/lib/supabase/queries
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { profile } = useUser();
   const { theme, setTheme } = useTheme();
   const [unread, setUnread] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
@@ -116,7 +118,11 @@ export function Navbar() {
 
           {/* Profile */}
           <Link href="/profile/me" className="ml-1">
-            <Avatar name="User" size="sm" />
+            <Avatar
+              name={profile?.display_name || profile?.username || "User"}
+              size="sm"
+              src={profile?.avatar_url}
+            />
           </Link>
         </div>
       </div>
