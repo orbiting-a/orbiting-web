@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { PhoneOff, Mic, MicOff, Video, VideoOff, Camera, CameraOff } from "lucide-react";
+import { PhoneOff, Mic, MicOff, Video, Camera } from "lucide-react";
 import { ringtoneManager } from "@/lib/ringtone";
 
 const ICE_SERVERS: RTCIceServer[] = [
@@ -47,7 +47,9 @@ export function CallDialog({
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const initRanRef = useRef(false);
+  const mountedRef = useRef(true);
+  const connectedRef = useRef(false);
+  const statusUnsubRef = useRef<{ unsubscribe: () => void } | null>(null);
 
   useEffect(() => {
     if (status === "ringing") ringtoneManager.startRingback();
@@ -59,17 +61,15 @@ export function CallDialog({
     let pc: RTCPeerConnection;
     let localStream: MediaStream;
     let ablyChannel: Awaited<ReturnType<typeof import("@/lib/ably")["getCallChannel"]>> | null = null;
-    let statusUnsub: { unsubscribe: () => void } | null = null;
-    const isCallerRole = isCaller;
+    mountedRef.current = true;
+    connectedRef.current = false;
 
     async function init() {
-      if (initRanRef.current) return;
-      initRanRef.current = true;
+      if (!mountedRef.current) return;
 
       try {
-        const { createCall, updateCallStatus, getCallSignals, subscribeToCallStatus, endCallWithLog } = await import("@/lib/supabase/queries");
-        const { getCallChannel, clearChannelCache } = await import("@/lib/ably");
-        const Ably = await import("ably");
+        const { createCall, updateCallStatus, getCallSignals, subscribeToCallStatus } = await import("@/lib/supabase/queries");
+        const { getCallChannel } = await import("@/lib/ably");
 
         // === 1. Setup PeerConnection ===
         pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
@@ -79,6 +79,7 @@ export function CallDialog({
           video: videoEnabled,
           audio: { echoCancellation: true, noiseSuppression: true },
         });
+        if (!mountedRef.current) return;
         localStreamRef.current = localStream;
         localStream.getTracks().forEach((track) => pc.addTrack(track, localStream!));
 
@@ -99,7 +100,7 @@ export function CallDialog({
 
         // === 2. Create or get call ID ===
         let cid = existingCallId;
-        if (isCallerRole) {
+        if (isCaller) {
           if (!cid) {
             const call = await createCall(channelId, otherUserId, initialType);
             cid = call.id;
@@ -109,15 +110,26 @@ export function CallDialog({
         if (!cid) throw new Error("No call ID");
 
         // === 3. Subscribe to DB call status updates (for hangup) ===
-        statusUnsub = subscribeToCallStatus(cid, (newStatus) => {
+        const statusSub = subscribeToCallStatus(cid, (newStatus) => {
           if (newStatus === "ended") onEnd();
         });
+        statusUnsubRef.current = statusSub;
 
-        // === 4. Setup Ably channel for signaling ===
-        ablyChannel = getCallChannel(cid);
+        // === 4. Setup Ably channel ===
+        if (!mountedRef.current) return;
+        ablyChannel = getCallChannel(cid, userId);
         await ablyChannel.presence.enter({ userId, name: otherUserName });
 
-        // Fetch existing signals from Ably channel history and DB
+        // === 5. ICE candidate queue ===
+        const iceQueue: RTCIceCandidateInit[] = [];
+        const flushIce = async () => {
+          while (iceQueue.length > 0) {
+            const c = iceQueue.shift();
+            if (c) await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+          }
+        };
+
+        // === 6. Fetch history signals first, then subscribe ===
         const historyPage = await ablyChannel.history({ untilAttach: true });
         const historySignals: { type: string; payload: unknown; sender_id: string }[] = [];
         for (const msg of historyPage.items) {
@@ -132,7 +144,6 @@ export function CallDialog({
         const dbSignals = await getCallSignals(cid);
         const allSignals = [...historySignals, ...dbSignals];
 
-        // Deduplicate by type+sender
         const seen = new Set<string>();
         const deduped = allSignals.filter((s) => {
           const key = `${s.type}-${s.sender_id}`;
@@ -141,39 +152,67 @@ export function CallDialog({
           return true;
         });
 
-        // === 5. ICE candidate queue (must wait for remote description) ===
-        const iceQueue: RTCIceCandidateInit[] = [];
-        const flushIce = async () => {
-          while (iceQueue.length > 0) {
-            const c = iceQueue.shift();
-            if (c) await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+        // Process deduped history/DB signals first
+        for (const s of deduped) {
+          if (!mountedRef.current) return;
+          if (s.type === "offer") {
+            if (pc.signalingState !== "stable") continue;
+            await pc.setRemoteDescription(new RTCSessionDescription(s.payload as RTCSessionDescriptionInit));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            ablyChannel.publish("signal", { type: "answer", payload: answer, sender_id: userId });
+            if (!connectedRef.current) {
+              connectedRef.current = true;
+              setStatus("connected");
+              updateCallStatus(cid, "connected").catch(() => {});
+            }
+            await flushIce();
+          } else if (s.type === "answer") {
+            if (pc.signalingState !== "have-local-offer") continue;
+            await pc.setRemoteDescription(new RTCSessionDescription(s.payload as RTCSessionDescriptionInit));
+            if (!connectedRef.current) {
+              connectedRef.current = true;
+              setStatus("connected");
+              updateCallStatus(cid, "connected").catch(() => {});
+            }
+            await flushIce();
+          } else if (s.type === "ice-candidate") {
+            if (pc.remoteDescription && pc.remoteDescription.type) {
+              await pc.addIceCandidate(new RTCIceCandidate(s.payload as RTCIceCandidateInit)).catch(() => {});
+            } else {
+              iceQueue.push(s.payload as RTCIceCandidateInit);
+            }
           }
-        };
+        }
 
-        // === 6. Handle incoming signals ===
-        let remoteDescSet = false;
+        if (!mountedRef.current) return;
 
+        // Then subscribe to live signals
         ablyChannel.subscribe("signal", async (msg) => {
           const signal = msg.data as { type: string; payload: unknown; sender_id: string };
           if (signal.sender_id === userId) return;
 
           try {
-            if (signal.type === "offer" && !isCallerRole) {
-              if (remoteDescSet) return;
+            if (signal.type === "offer") {
+              if (pc.signalingState !== "stable") return;
               await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
-              remoteDescSet = true;
               const answer = await pc.createAnswer();
               await pc.setLocalDescription(answer);
               ablyChannel?.publish("signal", { type: "answer", payload: answer, sender_id: userId });
-              setStatus("connected");
-              updateCallStatus(cid!, "connected").catch(() => {});
+              if (!connectedRef.current) {
+                connectedRef.current = true;
+                setStatus("connected");
+                updateCallStatus(cid!, "connected").catch(() => {});
+              }
               await flushIce();
-            } else if (signal.type === "answer" && isCallerRole) {
-              if (remoteDescSet) return;
+            } else if (signal.type === "answer") {
+              if (pc.signalingState !== "have-local-offer") return;
               await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
-              remoteDescSet = true;
-              setStatus("connected");
-              updateCallStatus(cid!, "connected").catch(() => {});
+              if (!connectedRef.current) {
+                connectedRef.current = true;
+                setStatus("connected");
+                updateCallStatus(cid!, "connected").catch(() => {});
+              }
               await flushIce();
             } else if (signal.type === "ice-candidate") {
               if (pc.remoteDescription && pc.remoteDescription.type) {
@@ -187,33 +226,6 @@ export function CallDialog({
           }
         });
 
-        // Process deduped signals from history/DB (only if not already handled by subscription)
-        for (const s of deduped) {
-          if (remoteDescSet) break;
-          if (s.type === "offer" && !isCallerRole) {
-            await pc.setRemoteDescription(new RTCSessionDescription(s.payload as RTCSessionDescriptionInit));
-            remoteDescSet = true;
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            ablyChannel.publish("signal", { type: "answer", payload: answer, sender_id: userId });
-            setStatus("connected");
-            updateCallStatus(cid!, "connected").catch(() => {});
-            await flushIce();
-          } else if (s.type === "answer" && isCallerRole) {
-            await pc.setRemoteDescription(new RTCSessionDescription(s.payload as RTCSessionDescriptionInit));
-            remoteDescSet = true;
-            setStatus("connected");
-            updateCallStatus(cid!, "connected").catch(() => {});
-            await flushIce();
-          } else if (s.type === "ice-candidate") {
-            if (pc.remoteDescription && pc.remoteDescription.type) {
-              await pc.addIceCandidate(new RTCIceCandidate(s.payload as RTCIceCandidateInit)).catch(() => {});
-            } else {
-              iceQueue.push(s.payload as RTCIceCandidateInit);
-            }
-          }
-        }
-
         // === 7. ICE candidate sending ===
         pc.onicecandidate = (event) => {
           if (event.candidate && cid) {
@@ -221,16 +233,27 @@ export function CallDialog({
           }
         };
 
-        // === 8. Connection state ===
+        // === 8. Renegotiation (video toggle, track changes) ===
+        pc.onnegotiationneeded = async () => {
+          try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            ablyChannel?.publish("signal", { type: "offer", payload: offer, sender_id: userId });
+          } catch (err) {
+            console.error("Renegotiation failed:", err);
+          }
+        };
+
+        // === 9. Connection state ===
         let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
         pc.onconnectionstatechange = () => {
           if (pc.connectionState === "connected") {
             if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
+            connectedRef.current = true;
             setStatus("connected");
             updateCallStatus(cid!, "connected").catch(() => {});
           } else if (pc.connectionState === "disconnected") {
-            // WebRTC may reconnect — wait 8s before declaring failure
             if (!disconnectTimer) {
               disconnectTimer = setTimeout(() => {
                 if (pc.connectionState !== "connected") {
@@ -249,6 +272,7 @@ export function CallDialog({
         pc.oniceconnectionstatechange = () => {
           if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
             if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
+            connectedRef.current = true;
             setStatus("connected");
             updateCallStatus(cid!, "connected").catch(() => {});
           } else if (pc.iceConnectionState === "failed") {
@@ -258,14 +282,15 @@ export function CallDialog({
           }
         };
 
-        // === 9. Caller sends offer ===
-        if (isCallerRole) {
+        // === 10. Caller sends initial offer ===
+        if (!mountedRef.current) return;
+        if (isCaller) {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           ablyChannel.publish("signal", { type: "offer", payload: offer, sender_id: userId });
           setStatus("ringing");
         } else {
-          if (!remoteDescSet) setStatus("connecting");
+          if (!connectedRef.current) setStatus("connecting");
         }
 
       } catch (e) {
@@ -279,14 +304,16 @@ export function CallDialog({
     init();
 
     return () => {
-      initRanRef.current = false;
+      mountedRef.current = false;
       if (ablyChannel) {
-        ablyChannel.presence.leave();
+        void ablyChannel.presence.leave();
         ablyChannel.unsubscribe("signal");
       }
-      statusUnsub?.unsubscribe();
+      statusUnsubRef.current?.unsubscribe();
+      statusUnsubRef.current = null;
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       pcRef.current?.close();
+      pcRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelId, userId, otherUserId, initialType, existingCallId, isCaller, onEnd]);
@@ -300,8 +327,8 @@ export function CallDialog({
     const stream = localStreamRef.current;
     if (!stream) return;
     if (videoEnabled) {
-      stream.getVideoTracks().forEach((t) => { t.stop(); stream.removeTrack(t); });
       const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === "video");
+      stream.getVideoTracks().forEach((t) => { t.stop(); stream.removeTrack(t); });
       if (sender) pcRef.current?.removeTrack(sender);
       setVideoEnabled(false);
     } else {

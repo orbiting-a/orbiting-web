@@ -178,7 +178,8 @@ export default function ChannelPage({
   const seenCallIdsRef = useRef<Set<string>>(new Set());
   const callActiveRef = useRef(callActive);
   const incomingCallRef = useRef(incomingCall);
-  useEffect(() => { callActiveRef.current = callActive; }, [callActive]);
+  const endedRef = useRef(false);
+  useEffect(() => { callActiveRef.current = callActive; endedRef.current = false; }, [callActive]);
   useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
 
   useEffect(() => {
@@ -456,6 +457,8 @@ export default function ChannelPage({
           callId={callActive.callId}
           isCaller={callActive.isCaller ?? true}
           onEnd={() => {
+            if (endedRef.current) return;
+            endedRef.current = true;
             if (callActive.callId) endCallWithLog(callActive.callId, channelId).catch(() => {});
             setCallActive(null);
           }}
