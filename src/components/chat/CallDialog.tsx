@@ -100,43 +100,38 @@ export function CallDialog({
           }
         };
 
-        if (!isCallerRole) {
-          const existing = await getCallSignals(cid);
-          for (const s of existing) {
-            if (s.sender_id === userId) continue;
-            if (s.type === "offer") {
-              if (pc.remoteDescription) continue;
-              await pc.setRemoteDescription(new RTCSessionDescription(s.payload as RTCSessionDescriptionInit));
-              const answer = await pc.createAnswer();
-              await pc.setLocalDescription(answer);
-              await sendCallSignal(cid, "answer", answer);
-              setStatus("connected");
-              await processIceQueue();
-            } else if (s.type === "ice-candidate") {
-              await addIce(s.payload as RTCIceCandidateInit);
-            }
-          }
-        }
+        const processedSignalIds = new Set<string>();
 
-        signalUnsub = subscribeToCallSignals(cid, async (signal) => {
-          if ((signal as { sender_id?: string }).sender_id === userId) return;
+        const handleSignal = async (s: { id: string; type: string; payload: unknown; sender_id: string }) => {
+          if (s.sender_id === userId) return;
+          if (processedSignalIds.has(s.id)) return;
+          processedSignalIds.add(s.id);
 
-          if (signal.type === "offer" && !isCallerRole) {
+          if (s.type === "offer" && !isCallerRole) {
             if (pc.remoteDescription) return;
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
+            await pc.setRemoteDescription(new RTCSessionDescription(s.payload as RTCSessionDescriptionInit));
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             await sendCallSignal(cid!, "answer", answer);
             setStatus("connected");
             await processIceQueue();
-          } else if (signal.type === "answer" && isCallerRole) {
+          } else if (s.type === "answer" && isCallerRole) {
             if (pc.remoteDescription) return;
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
+            await pc.setRemoteDescription(new RTCSessionDescription(s.payload as RTCSessionDescriptionInit));
             setStatus("connected");
             await processIceQueue();
-          } else if (signal.type === "ice-candidate") {
-            await addIce(signal.payload as RTCIceCandidateInit);
+          } else if (s.type === "ice-candidate") {
+            await addIce(s.payload as RTCIceCandidateInit);
           }
+        };
+
+        const existing = await getCallSignals(cid);
+        for (const s of existing) {
+          await handleSignal(s);
+        }
+
+        signalUnsub = subscribeToCallSignals(cid, async (signal) => {
+          await handleSignal(signal);
         });
 
         pc.onicecandidate = (event) => {

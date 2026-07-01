@@ -5,17 +5,23 @@ import { NextResponse } from "next/server";
 async function isAdminUser(userId: string) {
   const adminIds = (process.env.ADMIN_USER_IDS || "").split(",").filter(Boolean);
   if (adminIds.includes(userId)) return true;
+  if (process.env.NEXT_PUBLIC_ADMIN_USER_ID === userId) return true;
+  
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { cookies: { getAll: async () => [], setAll: async () => {} } }
   );
-  const { data } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .single();
-  return data?.role === "admin";
+  try {
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+    return (data as any)?.role === "admin";
+  } catch (e) {
+    return false;
+  }
 }
 
 export async function POST(req: Request) {
