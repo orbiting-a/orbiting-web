@@ -7,6 +7,21 @@ import { ringtoneManager } from "@/lib/ringtone";
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.cloudflare.com:3478" },
   { urls: "stun:stun.l.google.com:19302" },
+  {
+    urls: "turn:openrelay.metered.ca:80",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+  {
+    urls: "turn:openrelay.metered.ca:443",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+  {
+    urls: "turn:openrelay.metered.ca:443?transport=tcp",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
 ];
 
 export function CallDialog({
@@ -140,23 +155,27 @@ export function CallDialog({
           if (processedSignalIds.has(s.id)) return;
           processedSignalIds.add(s.id);
 
-          if (s.type === "offer" && !isCallerRole) {
-            if (pc.remoteDescription) return;
-            await pc.setRemoteDescription(new RTCSessionDescription(s.payload as RTCSessionDescriptionInit));
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            await sendCallSignal(cid!, otherUserId, "answer", answer);
-            setStatus("connected");
-            updateCallStatus(cid!, "connected").catch(() => {});
-            await processIceQueue();
-          } else if (s.type === "answer" && isCallerRole) {
-            if (pc.remoteDescription) return;
-            await pc.setRemoteDescription(new RTCSessionDescription(s.payload as RTCSessionDescriptionInit));
-            setStatus("connected");
-            updateCallStatus(cid!, "connected").catch(() => {});
-            await processIceQueue();
-          } else if (s.type === "ice-candidate") {
-            await addIce(s.payload as RTCIceCandidateInit);
+          try {
+            if (s.type === "offer" && !isCallerRole) {
+              if (pc.remoteDescription) return;
+              await pc.setRemoteDescription(new RTCSessionDescription(s.payload as RTCSessionDescriptionInit));
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              await sendCallSignal(cid!, otherUserId, "answer", answer);
+              setStatus("connected");
+              updateCallStatus(cid!, "connected").catch(() => {});
+              await processIceQueue();
+            } else if (s.type === "answer" && isCallerRole) {
+              if (pc.remoteDescription) return;
+              await pc.setRemoteDescription(new RTCSessionDescription(s.payload as RTCSessionDescriptionInit));
+              setStatus("connected");
+              updateCallStatus(cid!, "connected").catch(() => {});
+              await processIceQueue();
+            } else if (s.type === "ice-candidate") {
+              await addIce(s.payload as RTCIceCandidateInit);
+            }
+          } catch (err) {
+            console.error("Failed to handle signal:", err);
           }
         };
 
