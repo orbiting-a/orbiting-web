@@ -90,9 +90,28 @@ export default function RadarPage() {
         console.error("Failed loading profile fallback location", err);
       }
 
+      const tryIpFallback = async () => {
+        try {
+          const res = await fetch("https://ipapi.co/json/");
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.latitude && data.longitude) {
+              const coords: [number, number] = [data.latitude, data.longitude];
+              setUserLocation(coords);
+              setPosition(coords);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (e) {
+          console.error("IP geolocation fallback failed", e);
+        }
+        setLoading(false);
+      };
+
       if (!navigator.geolocation) {
         setPermissionStatus("unsupported");
-        setLoading(false);
+        await tryIpFallback();
         return;
       }
 
@@ -133,15 +152,15 @@ export default function RadarPage() {
             })
             .catch((e) => console.error("Error geocoding & saving location:", e));
         },
-        (err) => {
+        async (err) => {
           if (err.code === err.PERMISSION_DENIED) {
             setPermissionStatus("denied");
           } else {
             setLocationError("Using default/profile location");
           }
-          setLoading(false);
+          await tryIpFallback();
         },
-        { enableHighAccuracy: true, timeout: 10000 }
+        { enableHighAccuracy: true, timeout: 5000 }
       );
     }
 

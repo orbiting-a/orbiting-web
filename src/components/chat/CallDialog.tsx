@@ -133,11 +133,13 @@ export function CallDialog({
             await pc.setLocalDescription(answer);
             await sendCallSignal(cid!, "answer", answer);
             setStatus("connected");
+            updateCallStatus(cid!, "connected").catch(() => {});
             await processIceQueue();
           } else if (s.type === "answer" && isCallerRole) {
             if (pc.remoteDescription) return;
             await pc.setRemoteDescription(new RTCSessionDescription(s.payload as RTCSessionDescriptionInit));
             setStatus("connected");
+            updateCallStatus(cid!, "connected").catch(() => {});
             await processIceQueue();
           } else if (s.type === "ice-candidate") {
             await addIce(s.payload as RTCIceCandidateInit);
@@ -159,11 +161,24 @@ export function CallDialog({
           }
         };
 
+        const handleConnectedState = () => {
+          setStatus("connected");
+          updateCallStatus(cid!, "connected").catch(() => {});
+        };
+
         pc.onconnectionstatechange = () => {
           if (pc.connectionState === "connected") {
-            setStatus("connected");
-            updateCallStatus(cid!, "connected").catch(() => {});
+            handleConnectedState();
           } else if (pc.connectionState === "failed") {
+            updateCallStatus(cid!, "ended").catch(() => {});
+            setTimeout(onEnd, 1000);
+          }
+        };
+
+        pc.oniceconnectionstatechange = () => {
+          if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+            handleConnectedState();
+          } else if (pc.iceConnectionState === "failed") {
             updateCallStatus(cid!, "ended").catch(() => {});
             setTimeout(onEnd, 1000);
           }
