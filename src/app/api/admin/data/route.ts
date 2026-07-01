@@ -103,6 +103,31 @@ export async function POST(req: Request) {
       }
     }
 
+    if (action === "clear_empty_channels") {
+      // Find all DM channels, then delete any that have 0 messages
+      const { data: channels } = await admin.from("channels").select("id, type");
+      if (channels && channels.length > 0) {
+        let deletedCount = 0;
+        for (const ch of channels) {
+          if (ch.type !== "dm") continue;
+          const { count } = await admin
+            .from("messages")
+            .select("id", { count: "exact", head: true })
+            .eq("channel_id", ch.id);
+          if (count === 0) {
+            await admin.from("call_signals").delete().eq("call_id", ch.id).then(() => {});
+            await admin.from("calls").delete().eq("channel_id", ch.id).then(() => {});
+            await admin.from("channel_members").delete().eq("channel_id", ch.id);
+            await admin.from("messages").delete().eq("channel_id", ch.id);
+            await admin.from("channels").delete().eq("id", ch.id);
+            deletedCount++;
+          }
+        }
+        return NextResponse.json({ success: true, message: `Deleted ${deletedCount} empty DM channels` });
+      }
+      return NextResponse.json({ success: true, message: "No channels found" });
+    }
+
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (e) {
     return NextResponse.json(

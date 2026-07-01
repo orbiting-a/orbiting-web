@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Card, Button } from "@/components/ui";
 import { toast } from "sonner";
-import { Trash2, HardDrive, MessageCircle } from "lucide-react";
+import { Trash2, HardDrive, MessageCircle, Hash } from "lucide-react";
 
 export default function AdminDataPage() {
   const [channelId, setChannelId] = useState("");
@@ -126,6 +126,30 @@ export default function AdminDataPage() {
           </div>
           <p className="text-[10px] text-text-muted">
             Warning: This permanently deletes files from Cloudflare R2. Use with caution.
+          </p>
+        </Card>
+
+        <Card padding="lg" className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+              <Hash className="h-5 w-5 text-amber-400" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-text-primary">Clean Empty DM Channels</h2>
+              <p className="text-xs text-text-muted">Delete all DM channels that have zero messages</p>
+            </div>
+          </div>
+          <Button
+            variant="danger"
+            onClick={() => callAdmin("clear_empty_channels")}
+            loading={clearing === "clear_empty_channels"}
+            disabled={clearing !== null}
+          >
+            <Trash2 className="h-4 w-4" />
+            Clean Empty Channels
+          </Button>
+          <p className="text-[10px] text-text-muted">
+            This scans all DM channels and permanently deletes any with 0 messages.
           </p>
         </Card>
       </div>

@@ -175,14 +175,26 @@ export default function ChannelPage({
   }, [channelId]);
 
   // Listen for incoming calls
+  const seenCallIdsRef = useRef<Set<string>>(new Set());
+  const callActiveRef = useRef(callActive);
+  const incomingCallRef = useRef(incomingCall);
+  useEffect(() => { callActiveRef.current = callActive; }, [callActive]);
+  useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
+
   useEffect(() => {
     if (!channelId || channelId === "undefined") return;
     const sub = subscribeToCalls(channelId, (call) => {
-      if (call.callee_id === currentUserId && (call.type === "audio" || call.type === "video")) {
-        const caller = membersRef.current.find((m) => m.id === call.caller_id);
-        const callerName = caller?.display_name || caller?.username || "Someone";
-        setIncomingCall({ type: call.type, callId: call.id, callerId: call.caller_id, callerName });
-      }
+      // Skip if not for us, already in a call, already showing incoming, or already seen this call
+      if (call.callee_id !== currentUserId) return;
+      if (call.type !== "audio" && call.type !== "video") return;
+      if (callActiveRef.current) return;
+      if (incomingCallRef.current) return;
+      if (seenCallIdsRef.current.has(call.id)) return;
+
+      seenCallIdsRef.current.add(call.id);
+      const caller = membersRef.current.find((m) => m.id === call.caller_id);
+      const callerName = caller?.display_name || caller?.username || "Someone";
+      setIncomingCall({ type: call.type, callId: call.id, callerId: call.caller_id, callerName });
     });
     return () => { sub.unsubscribe(); };
   }, [channelId, currentUserId]);
