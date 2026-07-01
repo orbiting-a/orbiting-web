@@ -4,7 +4,7 @@
 /* Derived from Flutter app: primaryColor=#36BCCB, bg=black, surface=#20222F, font=Nunito */
 
 @theme inline {
-  --font-sans: var(--font-nunito, var(--font-geist-sans));
+  --font-sans: var(--font-nunito);
   --font-mono: var(--font-geist-mono);
 
   /* Brand Colors — matches Flutter primaryColor #36BCCB (teal/cyan) */

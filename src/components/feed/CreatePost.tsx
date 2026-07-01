@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card, Avatar, Button, Input } from "@/components/ui";
+import { Card, Avatar, Button } from "@/components/ui";
 import { Image, Video, BarChart3, X, Plus, Trash2 } from "lucide-react";
 import { createPost, uploadMedia, createPoll } from "@/lib/supabase/queries";
 

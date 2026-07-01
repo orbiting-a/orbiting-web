@@ -13,17 +13,46 @@ export default function PrivacyPage() {
   const supabase = createClient();
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleDeleteAccount = async () => {
     if (!confirmDelete) { setConfirmDelete(true); return; }
     setDeleting(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await supabase.from("profiles").delete().eq("id", user.id);
-      await supabase.auth.admin.deleteUser(user.id);
+    setDeleteError(null);
+
+    try {
+      // Get the current session token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setDeleteError("No active session. Please log in again.");
+        setDeleting(false);
+        return;
+      }
+
+      // Call the server-side API route (uses service role key securely)
+      const res = await fetch("/api/delete-account", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        setDeleteError(result.error || "Failed to delete account");
+        setDeleting(false);
+        return;
+      }
+
+      // Sign out and redirect
+      await signOut();
+      router.push("/login");
+    } catch (err: any) {
+      setDeleteError(err?.message || "Something went wrong");
+      setDeleting(false);
     }
-    await signOut();
-    router.push("/login");
   };
 
   return (
@@ -60,6 +89,9 @@ export default function PrivacyPage() {
           <Card padding="md">
             <p className="text-sm text-text-primary font-medium mb-1">Delete Account</p>
             <p className="text-xs text-text-muted mb-4">Permanently delete your account and all data. This cannot be undone.</p>
+            {deleteError && (
+              <p className="text-xs text-red-400 mb-3">{deleteError}</p>
+            )}
             <Button
               variant="danger"
               size="sm"

@@ -83,14 +83,16 @@ function UpdateProfileForm() {
           return;
         }
 
-        // Insert into public.profiles table (real db integration)
+        // Insert into public.profiles table
+        // Note: profiles table has columns: id, username, display_name, bio, avatar_url,
+        // phone, location, interests, is_verified, created_at, updated_at.
+        // Avoid upserting non-existent columns like "full_name" or "email".
         const { error: profileError } = await supabase
           .from("profiles")
           .upsert({
             id: user.id,
             username,
-            full_name: name,
-            email,
+            display_name: name,
             phone,
             updated_at: new Date().toISOString(),
           });

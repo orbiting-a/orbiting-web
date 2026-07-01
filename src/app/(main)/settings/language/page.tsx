@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Button } from "@/components/ui";
 import { ArrowLeft, Globe, Check } from "lucide-react";
@@ -26,9 +26,26 @@ const languages = [
   { code: "zh", label: "Chinese", native: "中文" },
 ];
 
+const STORAGE_KEY = "orbit_language";
+
 export default function LanguagePage() {
   const router = useRouter();
   const [selected, setSelected] = useState("en");
+
+  // Load saved preference on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved && languages.some((l) => l.code === saved)) {
+      setSelected(saved);
+    }
+  }, []);
+
+  const handleSelect = (code: string) => {
+    setSelected(code);
+    localStorage.setItem(STORAGE_KEY, code);
+    // Future: sync to server profile when profile language field exists
+    // e.g., supabase.from("profiles").update({ language: code }).eq("id", userId)
+  };
 
   return (
     <div className="max-w-md mx-auto px-4 py-6">
@@ -43,7 +60,7 @@ export default function LanguagePage() {
         {languages.map((lang, idx) => (
           <button
             key={lang.code}
-            onClick={() => setSelected(lang.code)}
+            onClick={() => handleSelect(lang.code)}
             className={`w-full flex items-center gap-3 px-4 py-3.5 text-sm transition-colors hover:bg-brand-50 dark:hover:bg-brand-900/10 ${
               idx < languages.length - 1 ? "border-b border-border-subtle" : ""
             }`}

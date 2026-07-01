@@ -5,7 +5,7 @@ import { ChatList } from "@/components/chat/ChatList";
 import { MessageCircle, Plus, X, Search, Loader2 } from "lucide-react";
 import { Button, Input, Avatar } from "@/components/ui";
 import { getCurrentUser } from "@/lib/auth";
-import { createGroupChannel, searchProfiles } from "@/lib/supabase/queries";
+import { createGroupChannel, createDMChannel, searchProfiles } from "@/lib/supabase/queries";
 import { useRouter } from "next/navigation";
 import type { Profile } from "@/types/database";
 
@@ -44,8 +44,13 @@ export default function ChatPage() {
   const handleCreateGroup = async () => {
     if (selectedUsers.length === 0) return;
     setCreating(true);
-    const name = groupName.trim() || `${selectedUsers.map((u) => u.display_name || u.username).join(", ")}`;
-    const channel = await createGroupChannel(name, selectedUsers.map((u) => u.id));
+    let channel;
+    if (selectedUsers.length === 1) {
+      channel = await createDMChannel(selectedUsers[0].id);
+    } else {
+      const name = groupName.trim() || `${selectedUsers.map((u) => u.display_name || u.username).join(", ")}`;
+      channel = await createGroupChannel(name, selectedUsers.map((u) => u.id));
+    }
     setCreating(false);
     setShowNewChat(false);
     setGroupName("");

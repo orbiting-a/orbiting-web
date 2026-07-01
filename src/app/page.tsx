@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence, useScroll, useSpring } from "framer-motion";
 import { Button } from "@/components/ui";
@@ -14,7 +15,6 @@ import {
   Users, 
   ChevronRight, 
   Sparkles, 
-  Radio, 
   ArrowRight,
   Shield,
   Coins
@@ -165,9 +165,7 @@ export default function LandingPage() {
       <nav className="sticky top-0 z-40 backdrop-blur-xl border-b border-white/[0.08] bg-black/40 px-6 py-4 transition-all shadow-[0_4px_30px_rgba(0,0,0,0.8)]">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#36BCCB] to-[#20222F] flex items-center justify-center shadow-lg shadow-[#36BCCB]/15 border border-white/10">
-              <span className="text-white font-extrabold text-lg">O</span>
-            </div>
+            <Image src="/logo.png" alt="Orbiting" width={36} height={36} className="rounded-full" />
             <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-white to-[#a5a1ac] bg-clip-text text-transparent">Orbiting</span>
           </div>
 
@@ -265,7 +263,7 @@ export default function LandingPage() {
             
             {/* Pulsing Core satellite model */}
             <div className="w-40 h-40 rounded-full bg-[#20222f]/60 backdrop-blur-xl border border-white/15 flex items-center justify-center relative shadow-2xl shadow-[#36BCCB]/10 z-10">
-              <Radio className="h-16 w-16 text-[#36BCCB] animate-pulse" />
+              <Image src="/logo.png" alt="Orbiting" width={80} height={80} className="rounded-full" />
               <div className="absolute inset-0 rounded-full border-2 border-[#36BCCB] animate-ping opacity-20" style={{ animationDuration: "3s" }} />
             </div>
 
@@ -527,7 +525,7 @@ export default function LandingPage() {
                 desc: "Prove local status and earn badges backed by secure blockchain protocols."
               }
             ].map((f, i) => (
-              <div key={i} className="flex gap-4 p-4.5 rounded-2xl bg-[#20222f]/30 backdrop-blur-md border border-white/[0.06] hover:border-[#36BCCB]/25 hover:shadow-[0_0_15px_rgba(54,188,203,0.05)] transition-all duration-350">
+              <div key={i} className="flex gap-4 p-5 rounded-2xl bg-[#20222f]/30 backdrop-blur-md border border-white/[0.06] hover:border-[#36BCCB]/25 hover:shadow-[0_0_15px_rgba(54,188,203,0.05)] transition-all duration-350">
                 <div className="h-10 w-10 rounded-xl bg-[#36BCCB]/10 border border-[#36BCCB]/20 flex items-center justify-center shrink-0">
                   <f.icon className="h-5 w-5 text-[#36BCCB]" />
                 </div>
@@ -676,9 +674,7 @@ export default function LandingPage() {
       <footer className="border-t border-white/[0.06] px-6 py-12 bg-black">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#36BCCB] to-[#20222F] flex items-center justify-center border border-white/10">
-              <span className="text-white font-bold text-sm">O</span>
-            </div>
+            <Image src="/logo.png" alt="Orbiting" width={28} height={28} className="rounded-full" />
             <span className="font-extrabold text-lg tracking-tight">Orbiting</span>
           </div>
 

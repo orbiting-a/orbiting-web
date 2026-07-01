@@ -15,6 +15,7 @@ export default function AdminModerationPage() {
   const supabase = createClient();
   const [posts, setPosts] = useState<PostWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -28,6 +29,40 @@ export default function AdminModerationPage() {
     }
     load();
   }, [supabase]);
+
+  const handleApprove = async (postId: string) => {
+    setActionLoading(postId);
+    // Approve by marking as reviewed (or simply pinning)
+    // In a full moderation system, you might set a "moderation_status" column.
+    // For now, we toggle is_pinned as a basic approval action.
+    const { error } = await supabase
+      .from("posts")
+      .update({ is_pinned: true })
+      .eq("id", postId);
+
+    if (error) {
+      console.error("Failed to approve post:", error.message);
+    } else {
+      // Remove from local state after approval
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+    }
+    setActionLoading(null);
+  };
+
+  const handleRemove = async (postId: string) => {
+    setActionLoading(postId);
+    const { error } = await supabase
+      .from("posts")
+      .delete()
+      .eq("id", postId);
+
+    if (error) {
+      console.error("Failed to remove post:", error.message);
+    } else {
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+    }
+    setActionLoading(null);
+  };
 
   if (loading) {
     return (
@@ -74,10 +109,22 @@ export default function AdminModerationPage() {
                   </div>
                   <p className="text-sm text-text-secondary line-clamp-2">{post.content}</p>
                   <div className="flex gap-2 mt-2">
-                    <Button variant="ghost" size="sm" icon={<Check className="h-3 w-3 text-green-400" />}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Check className="h-3 w-3 text-green-400" />}
+                      loading={actionLoading === post.id}
+                      onClick={() => handleApprove(post.id)}
+                    >
                       Approve
                     </Button>
-                    <Button variant="ghost" size="sm" icon={<X className="h-3 w-3 text-red-400" />}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<X className="h-3 w-3 text-red-400" />}
+                      loading={actionLoading === post.id}
+                      onClick={() => handleRemove(post.id)}
+                    >
                       Remove
                     </Button>
                   </div>

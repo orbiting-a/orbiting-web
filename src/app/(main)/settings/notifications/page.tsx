@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Button } from "@/components/ui";
 import { ArrowLeft, Bell, Heart, MessageCircle, Users, AtSign, CheckCircle2 } from "lucide-react";
@@ -14,6 +14,8 @@ const notificationOptions = [
   { id: "orbit_updates", label: "Orbit Updates", description: "Activity in your orbits", icon: Bell },
 ];
 
+const STORAGE_KEY = "orbit_notification_preferences";
+
 export default function NotificationsSettingsPage() {
   const router = useRouter();
   const [enabled, setEnabled] = useState<Record<string, boolean>>({
@@ -25,14 +27,29 @@ export default function NotificationsSettingsPage() {
   });
   const [saved, setSaved] = useState(false);
 
+  // Load saved preferences on mount
+  useEffect(() => {
+    try {
+      const savedPrefs = localStorage.getItem(STORAGE_KEY);
+      if (savedPrefs) {
+        const parsed = JSON.parse(savedPrefs);
+        setEnabled((prev) => ({ ...prev, ...parsed }));
+      }
+    } catch {
+      // Ignore parse errors — use defaults
+    }
+  }, []);
+
   const toggle = (id: string) => {
     setEnabled((prev) => ({ ...prev, [id]: !prev[id] }));
     setSaved(false);
   };
 
   const handleSave = () => {
-    localStorage.setItem("notification_preferences", JSON.stringify(enabled));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(enabled));
     setSaved(true);
+    // Future: sync to server-side notification_preferences table
+    // e.g., supabase.from("notification_preferences").upsert({ user_id, ...enabled })
     setTimeout(() => setSaved(false), 2000);
   };
 

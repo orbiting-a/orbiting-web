@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect, useCallback } from "react";
 import { Avatar } from "@/components/ui";
-import { MessageList } from "@/components/chat/MessageBubble";
+import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ArrowLeft, Phone, Video, MoreHorizontal } from "lucide-react";
 import Link from "next/link";

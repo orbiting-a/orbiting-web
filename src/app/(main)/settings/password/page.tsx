@@ -10,11 +10,10 @@ import { createClient } from "@/lib/supabase/client";
 export default function ChangePasswordPage() {
   const router = useRouter();
   const supabase = createClient();
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -35,6 +34,12 @@ export default function ChangePasswordPage() {
 
     setSaving(true);
 
+    // NOTE: Supabase's updateUser({ password }) requires the user to have
+    // logged in recently. If the session is too old, this will fail with
+    // a "re-authentication needed" error. In that case, the user should
+    // log out and use the "Forgot Password" flow instead.
+    // For production, consider using supabase.auth.signInWithPassword()
+    // with the current password first to re-authenticate.
     const { error: updateError } = await supabase.auth.updateUser({
       password: newPassword,
     });
@@ -43,7 +48,6 @@ export default function ChangePasswordPage() {
       setError(updateError.message);
     } else {
       setSuccess(true);
-      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     }
@@ -92,14 +96,14 @@ export default function ChangePasswordPage() {
 
           <Input
             label="Confirm New Password"
-            type={showCurrent ? "text" : "password"}
+            type={showConfirm ? "text" : "password"}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="Confirm new password"
             icon={<Lock className="h-4 w-4" />}
             rightIcon={
-              <button type="button" onClick={() => setShowCurrent(!showCurrent)} className="cursor-pointer">
-                {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="cursor-pointer">
+                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             }
             required

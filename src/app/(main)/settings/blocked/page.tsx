@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Card, Avatar, Button } from "@/components/ui";
-import { ArrowLeft, Ban, UserX } from "lucide-react";
+import { ArrowLeft, Ban, UserX, Construction } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { getCurrentUser } from "@/lib/auth";
@@ -14,11 +14,15 @@ export default function BlockedUsersPage() {
 
   useEffect(() => {
     getCurrentUser().then(async (user) => {
-      if (!user) return;
-      const { data } = await supabase
-        .from("follows")
-        .select("profiles!follows_following_id_fkey(id, username, display_name, avatar_url)")
-        .eq("follower_id", "blocked_placeholder");
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      // NOTE: The database does not yet have a "blocks" table.
+      // Once a "blocks" table is created (with schema: id, blocker_id, blocked_id, created_at),
+      // replace this query with:
+      //   supabase.from("blocks").select("profiles!blocks_blocked_id_fkey(id, username, display_name, avatar_url)").eq("blocker_id", user.id)
+      // For now, we return an empty list with a "coming soon" indicator.
       setBlocked([]);
       setLoading(false);
     });
@@ -46,8 +50,11 @@ export default function BlockedUsersPage() {
         </div>
       ) : blocked.length === 0 ? (
         <Card padding="lg" className="flex flex-col items-center py-12 text-center">
-          <Ban className="h-10 w-10 text-text-muted mb-3" />
-          <p className="text-sm text-text-muted">No blocked users</p>
+          <Construction className="h-10 w-10 text-text-muted mb-3" />
+          <p className="text-sm font-medium text-text-primary mb-1">Coming Soon</p>
+          <p className="text-xs text-text-muted max-w-xs">
+            The block feature is not yet implemented. You will be able to block and manage blocked users here in a future update.
+          </p>
         </Card>
       ) : (
         <div className="space-y-2">

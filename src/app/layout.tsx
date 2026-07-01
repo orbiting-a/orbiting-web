@@ -25,11 +25,16 @@ export const metadata: Metadata = {
   description:
     "Join Orbiting — discover communities, connect with people nearby, and share what matters. Your social universe, in orbit.",
   keywords: ["social network", "communities", "orbits", "events", "chat"],
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
   openGraph: {
     title: "Orbiting",
     description: "Communities That Move With You",
     type: "website",
     siteName: "Orbiting",
+    images: [{ url: "/logo.png" }],
   },
 };
 
