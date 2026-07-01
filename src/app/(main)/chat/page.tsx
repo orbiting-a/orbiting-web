@@ -7,6 +7,7 @@ import { Button, Input, Avatar } from "@/components/ui";
 import { getCurrentUser } from "@/lib/auth";
 import { createGroupChannel, createDMChannel, searchProfiles } from "@/lib/supabase/queries";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import type { Profile } from "@/types/database";
 
 export default function ChatPage() {
@@ -44,19 +45,23 @@ export default function ChatPage() {
   const handleCreateGroup = async () => {
     if (selectedUsers.length === 0) return;
     setCreating(true);
-    let channel;
-    if (selectedUsers.length === 1) {
-      channel = await createDMChannel(selectedUsers[0].id);
-    } else {
-      const name = groupName.trim() || `${selectedUsers.map((u) => u.display_name || u.username).join(", ")}`;
-      channel = await createGroupChannel(name, selectedUsers.map((u) => u.id));
+    try {
+      let channel;
+      if (selectedUsers.length === 1) {
+        channel = await createDMChannel(selectedUsers[0].id);
+      } else {
+        const name = groupName.trim() || `${selectedUsers.map((u) => u.display_name || u.username).join(", ")}`;
+        channel = await createGroupChannel(name, selectedUsers.map((u) => u.id));
+      }
+      setShowNewChat(false);
+      setGroupName("");
+      setSelectedUsers([]);
+      setUserSearch("");
+      if (channel) router.push(`/chat/${channel.id}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to create conversation");
     }
     setCreating(false);
-    setShowNewChat(false);
-    setGroupName("");
-    setSelectedUsers([]);
-    setUserSearch("");
-    if (channel) router.push(`/chat/${channel.id}`);
   };
 
   return (
