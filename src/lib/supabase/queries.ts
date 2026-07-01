@@ -637,29 +637,40 @@ export async function createOrbitChannel(orbitId: string, name: string) {
 }
 
 export async function createDMChannel(targetUserId: string) {
+  // Try API route first (bypasses RLS with service role)
+  try {
+    const res = await fetch("/api/chat/create-dm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetUserId }),
+    });
+    if (res.ok) {
+      const channel = await res.json();
+      if (channel?.id) return channel as Channel;
+    }
+  } catch {
+    // fall through to direct supabase call
+  }
+
+  // Fallback: direct supabase call
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  // Check if DM already exists
   const { data: existing } = await supabase.rpc("find_dm_channel", {
     user1_id: user.id,
     user2_id: targetUserId,
   });
   if (existing) return existing as Channel;
 
-  // Create channel
   const { data: created } = await supabase
     .from("channels")
     .insert({ type: "dm", created_by: user.id })
     .select()
     .single();
-
   let channel = created as Channel | null;
-
-  // If .select() returned null (RLS), fetch it by created_by as fallback
   if (!channel) {
-    const { data: fallback } = await supabase
+    const { data: fb } = await supabase
       .from("channels")
       .select("*")
       .eq("created_by", user.id)
@@ -667,18 +678,15 @@ export async function createDMChannel(targetUserId: string) {
       .order("created_at", { ascending: false })
       .limit(1)
       .single();
-    channel = fallback as Channel | null;
+    channel = fb as Channel | null;
   }
-
   if (!channel?.id) throw new Error("Failed to create channel");
 
-  // Insert members
-  const { error: memberError } = await supabase.from("channel_members").insert([
+  const { error: me } = await supabase.from("channel_members").insert([
     { channel_id: channel.id, user_id: user.id },
     { channel_id: channel.id, user_id: targetUserId },
   ]);
-  if (memberError) throw memberError;
-
+  if (me) throw me;
   return channel as Channel;
 }
 
