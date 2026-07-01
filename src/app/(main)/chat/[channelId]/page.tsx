@@ -20,6 +20,7 @@ import {
   deleteMessageForEveryone,
   markChannelRead,
   leaveChannel,
+  createCall,
 } from "@/lib/supabase/queries";
 import { getCurrentUser } from "@/lib/auth";
 import { toast } from "sonner";
@@ -38,7 +39,7 @@ export default function ChannelPage({
   const [currentUserId, setCurrentUserId] = useState<string>();
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [callActive, setCallActive] = useState<"audio" | "video" | null>(null);
+  const [callActive, setCallActive] = useState<{ type: "audio" | "video"; callId?: string; isCaller?: boolean } | null>(null);
 
   useEffect(() => {
     if (!channelId || channelId === "undefined") {
@@ -95,7 +96,7 @@ export default function ChannelPage({
     if (!channelId || channelId === "undefined") return;
     const sub = subscribeToCalls(channelId, (call) => {
       if (call.callee_id === currentUserId && (call.type === "audio" || call.type === "video")) {
-        setCallActive(call.type);
+        setCallActive({ type: call.type, callId: call.id, isCaller: false });
       }
     });
     return () => { sub.unsubscribe(); };
@@ -233,7 +234,14 @@ export default function ChannelPage({
         </div>
         <div className="flex items-center gap-1 shrink-0 relative">
           <button
-            onClick={() => setCallActive("audio")}
+            onClick={async () => {
+              const calleeId = otherMembers[0]?.id;
+              if (!calleeId || !currentUserId) return;
+              try {
+                const call = await createCall(channelId, calleeId, "audio");
+                setCallActive({ type: "audio", callId: call.id, isCaller: true });
+              } catch { toast.error("Failed to start call"); }
+            }}
             className={`p-2 rounded-lg transition-colors ${
               callActive
                 ? "bg-green-500 text-white"
@@ -243,9 +251,16 @@ export default function ChannelPage({
             <Phone className="h-4 w-4" />
           </button>
           <button
-            onClick={() => setCallActive("video")}
+            onClick={async () => {
+              const calleeId = otherMembers[0]?.id;
+              if (!calleeId || !currentUserId) return;
+              try {
+                const call = await createCall(channelId, calleeId, "video");
+                setCallActive({ type: "video", callId: call.id, isCaller: true });
+              } catch { toast.error("Failed to start call"); }
+            }}
             className={`p-2 rounded-lg transition-colors ${
-              callActive === "video"
+              callActive?.type === "video"
                 ? "bg-green-500 text-white"
                 : "text-text-secondary hover:text-text-primary hover:bg-brand-50 dark:hover:bg-brand-900/20"
             }`}
@@ -298,7 +313,9 @@ export default function ChannelPage({
           userId={currentUserId || ""}
           otherUserId={otherMembers[0]?.id || ""}
           otherUserName={otherMembers[0]?.display_name || otherMembers[0]?.username || "User"}
-          initialType={callActive}
+          initialType={callActive.type}
+          callId={callActive.callId}
+          isCaller={callActive.isCaller ?? true}
           onEnd={() => setCallActive(null)}
         />
       )}

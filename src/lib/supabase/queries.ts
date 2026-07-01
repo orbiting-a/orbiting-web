@@ -798,7 +798,7 @@ export async function sendCallSignal(callId: string, type: string, payload: unkn
   if (error) throw error;
 }
 
-export function subscribeToCallSignals(callId: string, onSignal: (signal: { type: string; payload: unknown }) => void) {
+export function subscribeToCallSignals(callId: string, onSignal: (signal: { type: string; payload: unknown; sender_id: string }) => void) {
   const supabase = createClient();
   const channel = supabase
     .channel(`call-signals-${callId}`)

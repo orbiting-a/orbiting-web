@@ -54,7 +54,6 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
     load();
   }, []);
 
-  // Re-fetch unread counts when navigating back to chat list from a channel
   useEffect(() => {
     if (pathname === "/chat") {
       getUnreadCounts().then((unread) => {
@@ -65,11 +64,8 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
 
   const filtered = useMemo(() => {
     let result = conversations;
-    if (filter === "DMs") {
-      result = result.filter((ch) => ch.type === "dm");
-    } else if (filter === "Groups") {
-      result = result.filter((ch) => ch.type === "group" || ch.type === "orbit_channel");
-    }
+    if (filter === "DMs") result = result.filter((ch) => ch.type === "dm");
+    else if (filter === "Groups") result = result.filter((ch) => ch.type === "group" || ch.type === "orbit_channel");
     return result;
   }, [conversations, filter]);
 
@@ -84,8 +80,7 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
@@ -95,27 +90,16 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
     setDeleting(true);
     let failed = 0;
     for (const id of selected) {
-      try {
-        await leaveChannel(id);
-        setConversations((prev) => prev.filter((ch) => ch.id !== id));
-      } catch {
-        failed++;
-      }
+      try { await leaveChannel(id); setConversations((prev) => prev.filter((ch) => ch.id !== id)); }
+      catch { failed++; }
     }
     setSelected(new Set());
     setSelectMode(false);
     setDeleting(false);
-    if (failed === 0) {
-      toast.success(`Left ${selected.size} conversation${selected.size > 1 ? "s" : ""}`);
-    } else {
-      toast.error(`Failed to leave ${failed} conversation${failed > 1 ? "s" : ""}`);
-    }
+    toast.success(failed === 0 ? `Left ${selected.size}` : `Failed to leave ${failed}`);
   };
 
-  const cancelSelect = () => {
-    setSelectMode(false);
-    setSelected(new Set());
-  };
+  const cancelSelect = () => { setSelectMode(false); setSelected(new Set()); };
 
   if (loading) {
     return (
@@ -152,29 +136,18 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
           <>
             <span className="text-xs text-text-muted">{selected.size} selected</span>
             <div className="flex items-center gap-2">
-              <button
-                onClick={cancelSelect}
-                className="text-xs text-text-muted hover:text-text-primary"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteSelected}
-                disabled={selected.size === 0 || deleting}
-                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 disabled:opacity-50"
-              >
+              <button onClick={cancelSelect} className="text-xs text-text-muted hover:text-text-primary">Cancel</button>
+              <button onClick={handleDeleteSelected} disabled={selected.size === 0 || deleting}
+                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
                 <Trash2 className="h-3.5 w-3.5" />
                 {deleting ? "Leaving..." : `Leave (${selected.size})`}
               </button>
             </div>
           </>
         ) : (
-          <button
-            onClick={() => setSelectMode(true)}
-            className="flex items-center gap-1 text-xs text-text-muted hover:text-text-primary"
-          >
-            <CheckCheck className="h-3.5 w-3.5" />
-            Select
+          <button onClick={() => setSelectMode(true)}
+            className="flex items-center gap-1 text-xs text-text-muted hover:text-text-primary">
+            <CheckCheck className="h-3.5 w-3.5" /> Select
           </button>
         )}
       </div>
@@ -183,107 +156,53 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
         const isActive = pathname === `/chat/${ch.id}`;
         const isDM = ch.type === "dm";
         const otherUser = getOtherUser(ch);
-        const name = isDM
-          ? otherUser?.display_name || otherUser?.username || "Unknown"
-          : ch.name || "Unnamed";
+        const name = isDM ? otherUser?.display_name || otherUser?.username || "Unknown" : ch.name || "Unnamed";
         const lastMsg = getLastMsg(ch);
         const isSelected = selected.has(ch.id);
         const unread = unreadCounts[ch.id] || 0;
 
         if (selectMode) {
           return (
-            <button
-              key={ch.id}
-              onClick={() => toggleSelect(ch.id)}
+            <button key={ch.id} onClick={() => toggleSelect(ch.id)}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all text-left",
-                isSelected
-                  ? "bg-brand-500/10 ring-1 ring-brand-500"
-                  : "text-text-secondary hover:bg-surface-raised"
-              )}
-            >
-              <div className={cn(
-                "h-5 w-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
-                isSelected
-                  ? "bg-brand-500 border-brand-500"
-                  : "border-border-subtle"
+                isSelected ? "bg-brand-500/10 ring-1 ring-brand-500" : "text-text-secondary hover:glass-card"
               )}>
-                {isSelected && (
-                  <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
+              <div className={cn("h-5 w-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
+                isSelected ? "bg-brand-500 border-brand-500" : "border-border-subtle")}>
+                {isSelected && <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
               </div>
-              {isDM && otherUser ? (
-                <Avatar
-                  name={name}
-                  size="sm"
-                  src={otherUser.avatar_url}
-                />
-              ) : (
+              {isDM && otherUser ? <Avatar name={name} size="sm" src={otherUser.avatar_url} /> : (
                 <div className="h-8 w-8 rounded-full bg-brand-400/20 flex items-center justify-center">
-                  <Hash className="h-4 w-4 text-brand-400" />
-                </div>
-              )}
+                  <Hash className="h-4 w-4 text-brand-400" /></div>)}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="font-medium truncate">{name}</p>
-                </div>
-                {lastMsg?.content && (
-                  <p className="text-xs text-text-muted truncate mt-0.5">{lastMsg.content}</p>
-                )}
+                <p className="font-medium truncate">{name}</p>
+                {lastMsg?.content && <p className="text-xs text-text-muted truncate mt-0.5">{lastMsg.content}</p>}
               </div>
-              {unread > 0 && (
-                <span className="shrink-0 h-5 min-w-[20px] flex items-center justify-center px-1 rounded-full bg-brand-500 text-[10px] font-bold text-white">
-                  {unread > 99 ? "99+" : unread}
-                </span>
-              )}
+              {unread > 0 && <span className="shrink-0 h-5 min-w-[20px] flex items-center justify-center px-1 rounded-full bg-brand-500 text-[10px] font-bold text-white">
+                {unread > 99 ? "99+" : unread}</span>}
             </button>
           );
         }
 
         return (
-          <Link
-            key={ch.id}
-            href={`/chat/${ch.id}`}
+          <Link key={ch.id} href={`/chat/${ch.id}`}
             className={cn(
               "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all",
-              isActive
-                ? "bg-brand-500 text-white"
-                : "text-text-secondary hover:text-text-primary hover:bg-surface-raised"
-            )}
-          >
-            {isDM && otherUser ? (
-              <Avatar
-                name={name}
-                size="sm"
-                src={otherUser.avatar_url}
-              />
-            ) : (
+              isActive ? "glass-card-static glow-brand" : "text-text-secondary hover:glass-card"
+            )}>
+            {isDM && otherUser ? <Avatar name={name} size="sm" src={otherUser.avatar_url} /> : (
               <div className="h-8 w-8 rounded-full bg-brand-400/20 flex items-center justify-center">
-                <Hash className="h-4 w-4 text-brand-400" />
-              </div>
-            )}
+                <Hash className="h-4 w-4 text-brand-400" /></div>)}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="font-medium truncate">{name}</p>
-              </div>
-              {lastMsg?.content && (
-                <p className={cn("text-xs truncate mt-0.5", isActive ? "text-white/70" : "text-text-muted")}>
-                  {lastMsg.content}
-                </p>
-              )}
+              <p className={cn("font-medium truncate", isActive && "text-brand-400")}>{name}</p>
+              {lastMsg?.content && <p className={cn("text-xs truncate mt-0.5", isActive ? "text-white/70" : "text-text-muted")}>{lastMsg.content}</p>}
             </div>
             {unread > 0 && (
-              <span className={cn(
-                "shrink-0 h-5 min-w-[20px] flex items-center justify-center px-1 rounded-full text-[10px] font-bold",
-                isActive
-                  ? "bg-white text-brand-500"
-                  : "bg-brand-500 text-white"
-              )}>
-                {unread > 99 ? "99+" : unread}
-              </span>
-            )}
+              <span className={cn("shrink-0 h-5 min-w-[20px] flex items-center justify-center px-1 rounded-full text-[10px] font-bold",
+                isActive ? "bg-white text-brand-500" : "bg-brand-500 text-white")}>
+                {unread > 99 ? "99+" : unread}</span>)}
           </Link>
         );
       })}

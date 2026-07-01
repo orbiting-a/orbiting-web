@@ -191,13 +191,27 @@ export function ChatInput({
           </span>
           <div className="flex-1 flex gap-1 items-center ml-2">
             {Array.from({ length: Math.min(recordDuration, 20) }).map((_, i) => (
-              <div
-                key={i}
-                className="flex-1 h-1 rounded-full bg-red-400/50"
-                style={{ height: `${4 + Math.random() * 12}px` }}
-              />
+              <div key={i} className="flex-1 h-1 rounded-full bg-red-400/50"
+                style={{ height: `${4 + Math.random() * 12}px` }} />
             ))}
           </div>
+        </div>
+      )}
+
+      {recordedBlob && !recording && (
+        <div className="mb-3 p-3 glass-card-static flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-green-400/10 flex items-center justify-center shrink-0">
+            <Mic className="h-5 w-5 text-green-400" />
+          </div>
+          <audio src={URL.createObjectURL(recordedBlob)} controls preload="metadata" className="h-9 flex-1" style={{ maxWidth: "200px" }} />
+          <span className="text-xs text-text-muted">{recordDuration}s</span>
+          <button onClick={cancelRecording}
+            className="p-1.5 rounded-lg text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+          <Button variant="primary" size="sm" onClick={sendRecording}>
+            <Send className="h-4 w-4" />
+          </Button>
         </div>
       )}
 

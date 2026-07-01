@@ -14,6 +14,8 @@ export function CallDialog({
   otherUserId,
   otherUserName,
   initialType,
+  callId: existingCallId,
+  isCaller,
   onEnd,
 }: {
   channelId: string;
@@ -21,11 +23,13 @@ export function CallDialog({
   otherUserId: string;
   otherUserName: string;
   initialType: "audio" | "video";
+  callId?: string;
+  isCaller: boolean;
   onEnd: () => void;
 }) {
   const [muted, setMuted] = useState(false);
   const [videoEnabled, setVideoEnabled] = useState(initialType === "video");
-  const [callId, setCallId] = useState<string | null>(null);
+  const [callId, setCallId] = useState<string | null>(existingCallId || null);
   const [status, setStatus] = useState("connecting");
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -36,11 +40,11 @@ export function CallDialog({
     let pc: RTCPeerConnection;
     let localStream: MediaStream;
     let signalUnsub: { unsubscribe: () => void } | null = null;
-    let isCaller = false;
+    const isCallerRole = isCaller;
 
     async function init() {
       try {
-        const { createCall, updateCallStatus, sendCallSignal, subscribeToCallSignals, subscribeToCalls } = await import("@/lib/supabase/queries");
+        const { createCall, updateCallStatus, sendCallSignal, subscribeToCallSignals } = await import("@/lib/supabase/queries");
 
         pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
         pcRef.current = pc;
@@ -51,8 +55,7 @@ export function CallDialog({
         });
         localStreamRef.current = localStream;
 
-        const tracks = localStream.getTracks();
-        tracks.forEach((track) => pc.addTrack(track, localStream!));
+        localStream.getTracks().forEach((track) => pc.addTrack(track, localStream!));
 
         if (localVideoRef.current && videoEnabled) {
           localVideoRef.current.srcObject = localStream;
@@ -64,39 +67,58 @@ export function CallDialog({
           }
         };
 
-        const call = await createCall(channelId, otherUserId, initialType);
-        setCallId(call.id);
-        isCaller = true;
+        let cid = existingCallId;
+        if (isCallerRole) {
+          if (!cid) {
+            const call = await createCall(channelId, otherUserId, initialType);
+            cid = call.id;
+            setCallId(cid);
+          }
+        }
 
-        signalUnsub = subscribeToCallSignals(call.id, async (signal) => {
-          if (signal.type === "answer") {
+        if (!cid) throw new Error("No call ID");
+
+        signalUnsub = subscribeToCallSignals(cid, async (signal) => {
+          if ((signal as { sender_id?: string }).sender_id === userId) return;
+
+          if (signal.type === "offer" && !isCallerRole) {
+            await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            await sendCallSignal(cid!, "answer", answer);
+            setStatus("connected");
+          } else if (signal.type === "answer" && isCallerRole) {
             await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
             setStatus("connected");
           } else if (signal.type === "ice-candidate") {
-            await pc.addIceCandidate(new RTCIceCandidate(signal.payload as RTCIceCandidateInit));
+            await pc.addIceCandidate(new RTCIceCandidate(signal.payload as RTCIceCandidateInit)).catch(() => {});
           }
         });
 
         pc.onicecandidate = (event) => {
-          if (event.candidate && call.id) {
-            sendCallSignal(call.id, "ice-candidate", event.candidate.toJSON()).catch(() => {});
+          if (event.candidate && cid) {
+            sendCallSignal(cid, "ice-candidate", event.candidate.toJSON()).catch(() => {});
           }
         };
 
         pc.onconnectionstatechange = () => {
           if (pc.connectionState === "connected") {
             setStatus("connected");
-            updateCallStatus(call.id, "connected").catch(() => {});
+            updateCallStatus(cid!, "connected").catch(() => {});
           } else if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
-            updateCallStatus(call.id, "ended").catch(() => {});
+            updateCallStatus(cid!, "ended").catch(() => {});
             setTimeout(onEnd, 1000);
           }
         };
 
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        await sendCallSignal(call.id, "offer", offer);
-        setStatus("ringing");
+        if (isCallerRole) {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          await sendCallSignal(cid, "offer", offer);
+          setStatus("ringing");
+        } else {
+          setStatus("connecting");
+        }
 
       } catch (e) {
         console.error("Call init failed", e);
@@ -111,7 +133,8 @@ export function CallDialog({
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       pcRef.current?.close();
     };
-  }, [channelId, userId, otherUserId, initialType]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelId, userId, otherUserId, initialType, existingCallId, isCaller, onEnd]);
 
   const toggleMute = () => {
     localStreamRef.current?.getAudioTracks().forEach((t) => { t.enabled = muted; });
