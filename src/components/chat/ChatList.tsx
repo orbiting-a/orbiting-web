@@ -3,16 +3,21 @@
 import { useState, useEffect, useMemo } from "react";
 import { Avatar } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import { getMyChannels, getChannelMembers } from "@/lib/supabase/queries";
-import { MessageCircle, Hash } from "lucide-react";
+import { getMyChannels, getChannelMembers, leaveChannel } from "@/lib/supabase/queries";
+import { MessageCircle, Hash, Trash2, CheckCheck } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import type { Channel, Profile } from "@/types/database";
 
 export function ChatList({ filter = "All" }: { filter?: string }) {
   const [conversations, setConversations] = useState<(Channel & { otherUser?: Profile })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     async function load() {
@@ -41,6 +46,42 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
     }
     return result;
   }, [conversations, filter]);
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selected.size === 0) return;
+    setDeleting(true);
+    let failed = 0;
+    for (const id of selected) {
+      try {
+        await leaveChannel(id);
+        setConversations((prev) => prev.filter((ch) => ch.id !== id));
+      } catch {
+        failed++;
+      }
+    }
+    setSelected(new Set());
+    setSelectMode(false);
+    setDeleting(false);
+    if (failed === 0) {
+      toast.success(`Left ${selected.size} conversation${selected.size > 1 ? "s" : ""}`);
+    } else {
+      toast.error(`Failed to leave ${failed} conversation${failed > 1 ? "s" : ""}`);
+    }
+  };
+
+  const cancelSelect = () => {
+    setSelectMode(false);
+    setSelected(new Set());
+  };
 
   if (loading) {
     return (
@@ -71,6 +112,38 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
 
   return (
     <div className="space-y-0.5 p-2">
+      <div className="flex items-center justify-between px-3 py-1">
+        {selectMode ? (
+          <>
+            <span className="text-xs text-text-muted">{selected.size} selected</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={cancelSelect}
+                className="text-xs text-text-muted hover:text-text-primary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteSelected}
+                disabled={selected.size === 0 || deleting}
+                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 disabled:opacity-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {deleting ? "Leaving..." : `Leave (${selected.size})`}
+              </button>
+            </div>
+          </>
+        ) : (
+          <button
+            onClick={() => setSelectMode(true)}
+            className="flex items-center gap-1 text-xs text-text-muted hover:text-text-primary"
+          >
+            <CheckCheck className="h-3.5 w-3.5" />
+            Select
+          </button>
+        )}
+      </div>
+
       {filtered.map((ch) => {
         const isActive = pathname === `/chat/${ch.id}`;
         const isDM = ch.type === "dm";
@@ -79,6 +152,49 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
             (ch as Channel & { otherUser?: Profile }).otherUser?.username ||
             "Unknown"
           : ch.name || "Unnamed";
+        const isSelected = selected.has(ch.id);
+
+        if (selectMode) {
+          return (
+            <button
+              key={ch.id}
+              onClick={() => toggleSelect(ch.id)}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all text-left",
+                isSelected
+                  ? "bg-brand-500/10 ring-1 ring-brand-500"
+                  : "text-text-secondary hover:bg-surface-raised"
+              )}
+            >
+              <div className={cn(
+                "h-5 w-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
+                isSelected
+                  ? "bg-brand-500 border-brand-500"
+                  : "border-border-subtle"
+              )}>
+                {isSelected && (
+                  <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </div>
+              {isDM ? (
+                <Avatar
+                  name={name}
+                  size="sm"
+                  src={(ch as Channel & { otherUser?: Profile }).otherUser?.avatar_url}
+                />
+              ) : (
+                <div className="h-8 w-8 rounded-full bg-brand-400/20 flex items-center justify-center">
+                  <Hash className="h-4 w-4 text-brand-400" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="font-medium truncate">{name}</p>
+              </div>
+            </button>
+          );
+        }
 
         return (
           <Link

@@ -661,7 +661,7 @@ export async function createDMChannel(targetUserId: string) {
     user1_id: user.id,
     user2_id: targetUserId,
   });
-  if (existing) return existing as Channel;
+  if (existing && Array.isArray(existing) && existing.length > 0) return existing[0] as Channel;
 
   const { data: created } = await supabase
     .from("channels")
@@ -711,6 +711,52 @@ export async function getMessages(channelId: string, limit = 50) {
     .order("created_at", { ascending: false })
     .limit(limit);
   return (data ?? []).reverse() as (Message & { profiles: Profile })[];
+}
+
+export async function deleteMessage(messageId: string) {
+  const supabase = createClient();
+  const { error } = await supabase.from("messages").delete().eq("id", messageId);
+  if (error) throw error;
+}
+
+export async function leaveChannel(channelId: string) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const { error } = await supabase.from("channel_members").delete().eq("channel_id", channelId).eq("user_id", user.id);
+  if (error) throw error;
+}
+
+export async function sendFileMessage(channelId: string, file: File, caption?: string) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  if (!channelId || channelId === "undefined") throw new Error("Invalid channel");
+
+  const ext = file.name.split(".").pop() || "file";
+  const path = `chat/${channelId}/${crypto.randomUUID()}.${ext}`;
+  const mediaUrl = await uploadToBucket(file, path);
+
+  const { data } = await supabase
+    .from("messages")
+    .insert({
+      channel_id: channelId,
+      sender_id: user.id,
+      content: caption || null,
+      media_url: mediaUrl,
+    })
+    .select()
+    .single();
+
+  if (!data) return null;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", data.sender_id)
+    .single();
+
+  return { ...data, profiles: profile } as Message & { profiles: Profile };
 }
 
 export async function sendMessage(channelId: string, content: string) {

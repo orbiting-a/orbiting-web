@@ -4,7 +4,7 @@ import { use, useState, useEffect, useCallback } from "react";
 import { Avatar } from "@/components/ui";
 import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { ArrowLeft, Phone, Video, MoreHorizontal, MessageCircle } from "lucide-react";
+import { ArrowLeft, Phone, Video, MoreHorizontal, MessageCircle, Trash2, LogOut } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -12,7 +12,10 @@ import {
   getMessages,
   getChannelMembers,
   sendMessage,
+  sendFileMessage,
   subscribeToMessages,
+  deleteMessage,
+  leaveChannel,
 } from "@/lib/supabase/queries";
 import { getCurrentUser } from "@/lib/auth";
 import { toast } from "sonner";
@@ -30,6 +33,7 @@ export default function ChannelPage({
   const [members, setMembers] = useState<Profile[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string>();
   const [loading, setLoading] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!channelId || channelId === "undefined") {
@@ -60,7 +64,6 @@ export default function ChannelPage({
         setMessages(msgs);
         setMembers(mems);
       } catch {
-        // non-fatal
       }
 
       setLoading(false);
@@ -92,7 +95,38 @@ export default function ChannelPage({
     [channelId]
   );
 
-  // DM channel title = other person's name
+  const handleDeleteMessage = useCallback(async (messageId: string) => {
+    try {
+      await deleteMessage(messageId);
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    } catch {
+      toast.error("Failed to delete message");
+    }
+  }, []);
+
+  const handleLeaveChannel = useCallback(async () => {
+    try {
+      await leaveChannel(channelId);
+      toast.success("Left conversation");
+      router.push("/chat");
+    } catch {
+      toast.error("Failed to leave conversation");
+    }
+  }, [channelId, router]);
+
+  const handleSendFile = useCallback(async (file: File) => {
+    try {
+      const msg = await sendFileMessage(channelId, file);
+      if (msg) {
+        setMessages((prev) => [...prev, msg]);
+      } else {
+        toast.error("Failed to send file");
+      }
+    } catch {
+      toast.error("Failed to send file");
+    }
+  }, [channelId]);
+
   const otherMembers = members.filter((m) => m.id !== currentUserId);
   const title = channel?.type === "dm"
     ? otherMembers.map((m) => m.display_name || m.username).join(", ") || "Chat"
@@ -156,16 +190,38 @@ export default function ChannelPage({
             <p className="text-xs text-text-muted truncate">{subtitle}</p>
           </div>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0 relative">
           <button className="p-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors">
             <Phone className="h-4 w-4" />
           </button>
           <button className="p-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors">
             <Video className="h-4 w-4" />
           </button>
-          <button className="p-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors">
-            <MoreHorizontal className="h-4 w-4" />
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="p-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 w-56 bg-surface-raised border border-border-subtle rounded-xl shadow-lg py-1 z-20">
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      handleLeaveChannel();
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-500/5 transition-colors"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Leave conversation
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -174,10 +230,11 @@ export default function ChannelPage({
         messages={messages}
         currentUserId={currentUserId}
         loading={loading}
+        onDelete={handleDeleteMessage}
       />
 
       {/* Input */}
-      <ChatInput onSend={handleSend} />
+      <ChatInput onSend={handleSend} onSendFile={handleSendFile} />
     </div>
   );
 }

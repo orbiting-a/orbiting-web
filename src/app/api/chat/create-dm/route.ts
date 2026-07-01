@@ -36,7 +36,9 @@ export async function POST(req: Request) {
       user1_id: user.id,
       user2_id: targetUserId,
     });
-    if (existing) return NextResponse.json(existing);
+    if (existing && Array.isArray(existing) && existing.length > 0) {
+      return NextResponse.json(existing[0]);
+    }
 
     // Create channel (service role bypasses RLS)
     const { data: channel, error: ce } = await admin
