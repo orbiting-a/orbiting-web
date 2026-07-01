@@ -85,6 +85,10 @@ function isImageUrl(url: string) {
   return /\.(jpg|jpeg|png|gif|webp|avif|svg|bmp)(\?.*)?$/i.test(url) || url.includes("image");
 }
 
+function isAudioUrl(url: string) {
+  return /\.(mp3|wav|ogg|opus|m4a|aac|webm)(\?.*)?$/i.test(url) || url.includes("audio");
+}
+
 function formatTime(date: string) {
   const d = new Date(date);
   const now = new Date();
@@ -207,6 +211,16 @@ function MessageBubble({
                         <File className="h-6 w-6 text-text-muted" />
                       </div>
                     )}
+                  </div>
+                ) : isAudioUrl(msg.media_url) ? (
+                  <div className={cn("p-3", isOwn ? "" : "")}>
+                    <audio
+                      src={msg.media_url}
+                      controls
+                      preload="metadata"
+                      className="w-full h-10"
+                      style={{ maxWidth: "240px" }}
+                    />
                   </div>
                 ) : (
                   <a

@@ -5,6 +5,7 @@ import { Avatar } from "@/components/ui";
 import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ArrowLeft, Phone, Video, MoreHorizontal, MessageCircle, Trash2, LogOut } from "lucide-react";
+import { CallDialog } from "@/components/chat/CallDialog";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -36,6 +37,7 @@ export default function ChannelPage({
   const [currentUserId, setCurrentUserId] = useState<string>();
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [callActive, setCallActive] = useState<"audio" | "video" | null>(null);
 
   useEffect(() => {
     if (!channelId || channelId === "undefined") {
@@ -209,10 +211,24 @@ export default function ChannelPage({
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0 relative">
-          <button className="p-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors">
+          <button
+            onClick={() => setCallActive("audio")}
+            className={`p-2 rounded-lg transition-colors ${
+              callActive
+                ? "bg-green-500 text-white"
+                : "text-text-secondary hover:text-text-primary hover:bg-brand-50 dark:hover:bg-brand-900/20"
+            }`}
+          >
             <Phone className="h-4 w-4" />
           </button>
-          <button className="p-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors">
+          <button
+            onClick={() => setCallActive("video")}
+            className={`p-2 rounded-lg transition-colors ${
+              callActive === "video"
+                ? "bg-green-500 text-white"
+                : "text-text-secondary hover:text-text-primary hover:bg-brand-50 dark:hover:bg-brand-900/20"
+            }`}
+          >
             <Video className="h-4 w-4" />
           </button>
           <div className="relative">
@@ -254,6 +270,15 @@ export default function ChannelPage({
 
       {/* Input */}
       <ChatInput onSend={handleSend} onSendFile={handleSendFile} />
+
+      {callActive && (
+        <CallDialog
+          channelId={channelId}
+          userId={currentUserId || ""}
+          otherUserName={otherMembers[0]?.display_name || otherMembers[0]?.username || "User"}
+          onEnd={() => setCallActive(null)}
+        />
+      )}
     </div>
   );
 }

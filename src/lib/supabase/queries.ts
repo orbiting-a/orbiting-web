@@ -796,8 +796,19 @@ export async function sendFileMessage(channelId: string, file: File, caption?: s
   if (!channelId || channelId === "undefined") throw new Error("Invalid channel");
 
   const ext = file.name.split(".").pop() || "file";
-  const path = `chat/${channelId}/${crypto.randomUUID()}.${ext}`;
-  const mediaUrl = await uploadToBucket(file, path);
+  const isImage = /^(jpg|jpeg|png|gif|webp|avif|bmp)$/i.test(ext);
+  const isAudio = /^(mp3|wav|ogg|opus|m4a|aac)$/i.test(ext) || file.type.startsWith("audio/");
+
+  const path = `chat/${channelId}/${crypto.randomUUID()}`;
+  let mediaUrl: string;
+
+  if (isImage) {
+    const { compressImage } = await import("@/lib/compress-image");
+    const compressed = await compressImage(file);
+    mediaUrl = await uploadToBucket(compressed, `${path}.webp`);
+  } else {
+    mediaUrl = await uploadToBucket(file, `${path}.${ext}`);
+  }
 
   const { data } = await supabase
     .from("messages")
