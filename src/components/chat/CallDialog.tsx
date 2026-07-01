@@ -34,6 +34,7 @@ export function CallDialog({
   const [status, setStatus] = useState("connecting");
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const initRanRef = useRef(false);
@@ -78,8 +79,13 @@ export function CallDialog({
         }
 
         pc.ontrack = (event) => {
-          if (remoteVideoRef.current && event.streams[0]) {
-            remoteVideoRef.current.srcObject = event.streams[0];
+          if (event.streams[0]) {
+            if (remoteVideoRef.current && videoEnabled) {
+              remoteVideoRef.current.srcObject = event.streams[0];
+            }
+            if (remoteAudioRef.current) {
+              remoteAudioRef.current.srcObject = event.streams[0];
+            }
           }
         };
 
@@ -253,6 +259,7 @@ export function CallDialog({
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
+      <audio ref={remoteAudioRef} autoPlay playsInline muted={videoEnabled} />
       <div className="flex-1 relative flex items-center justify-center p-4">
         {videoEnabled ? (
           <>
