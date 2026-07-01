@@ -25,19 +25,21 @@ export async function createGroupChannel(name: string, memberIds: string[]) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  const { data } = await supabase
+  const { data: channel } = await supabase
     .from("channels")
     .insert({ type: "group", name, created_by: user.id })
     .select()
     .single();
 
-  if (data) {
-    const allMembers = [...new Set([user.id, ...memberIds])];
-    await supabase.from("channel_members").insert(
-      allMembers.map((uid) => ({ channel_id: data.id, user_id: uid }))
-    );
-  }
-  return data as Channel | null;
+  if (!channel) throw new Error("Failed to create channel");
+
+  const allMembers = [...new Set([user.id, ...memberIds])];
+  const { error } = await supabase.from("channel_members").insert(
+    allMembers.map((uid) => ({ channel_id: channel.id, user_id: uid }))
+  );
+  if (error) throw error;
+
+  return channel as Channel;
 }
 
 export async function createOrbitChannel(orbitId: string, name: string) {
@@ -66,19 +68,21 @@ export async function createDMChannel(targetUserId: string) {
   });
   if (existing) return existing as Channel;
 
-  const { data } = await supabase
+  const { data: channel } = await supabase
     .from("channels")
     .insert({ type: "dm", created_by: user.id })
     .select()
     .single();
 
-  if (data) {
-    await supabase.from("channel_members").insert([
-      { channel_id: data.id, user_id: user.id },
-      { channel_id: data.id, user_id: targetUserId },
-    ]);
-  }
-  return data as Channel | null;
+  if (!channel) throw new Error("Failed to create channel");
+
+  const { error: memberError } = await supabase.from("channel_members").insert([
+    { channel_id: channel.id, user_id: user.id },
+    { channel_id: channel.id, user_id: targetUserId },
+  ]);
+  if (memberError) throw memberError;
+
+  return channel as Channel;
 }
 
 export async function getChannelMembers(channelId: string) {
