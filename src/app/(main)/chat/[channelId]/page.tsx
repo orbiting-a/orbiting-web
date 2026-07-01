@@ -4,6 +4,7 @@ import { use, useState, useEffect, useCallback } from "react";
 import { Avatar } from "@/components/ui";
 import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { IncomingCall } from "@/components/chat/IncomingCall";
 import { ArrowLeft, Phone, Video, MoreHorizontal, MessageCircle, Trash2, LogOut } from "lucide-react";
 import { CallDialog } from "@/components/chat/CallDialog";
 import { useOnlineStatus } from "@/lib/presence";
@@ -23,6 +24,7 @@ import {
   markChannelRead,
   leaveChannel,
   endCallWithLog,
+  updateCallStatus,
 } from "@/lib/supabase/queries";
 import { getCurrentUser } from "@/lib/auth";
 import { toast } from "sonner";
@@ -42,6 +44,7 @@ export default function ChannelPage({
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [callActive, setCallActive] = useState<{ type: "audio" | "video"; callId?: string; isCaller?: boolean } | null>(null);
+  const [incomingCall, setIncomingCall] = useState<{ type: "audio" | "video"; callId: string; callerId: string; callerName: string } | null>(null);
 
   useEffect(() => {
     if (!channelId || channelId === "undefined") {
@@ -111,11 +114,26 @@ export default function ChannelPage({
     if (!channelId || channelId === "undefined") return;
     const sub = subscribeToCalls(channelId, (call) => {
       if (call.callee_id === currentUserId && (call.type === "audio" || call.type === "video")) {
-        setCallActive({ type: call.type, callId: call.id, isCaller: false });
+        // Find caller name
+        const caller = members.find((m) => m.id === call.caller_id);
+        const callerName = caller?.display_name || caller?.username || "Someone";
+        setIncomingCall({ type: call.type, callId: call.id, callerId: call.caller_id, callerName });
       }
     });
     return () => { sub.unsubscribe(); };
-  }, [channelId, currentUserId]);
+  }, [channelId, currentUserId, members]);
+
+  const handleAnswerCall = useCallback(() => {
+    if (!incomingCall) return;
+    setCallActive({ type: incomingCall.type, callId: incomingCall.callId, isCaller: false });
+    setIncomingCall(null);
+  }, [incomingCall]);
+
+  const handleDeclineCall = useCallback(() => {
+    if (!incomingCall) return;
+    endCallWithLog(incomingCall.callId, channelId).catch(() => {});
+    setIncomingCall(null);
+  }, [incomingCall, channelId]);
 
   const handleSend = useCallback(
     async (content: string) => {
@@ -321,6 +339,15 @@ export default function ChannelPage({
 
       {/* Input */}
       <ChatInput onSend={handleSend} onSendFile={handleSendFile} />
+
+      {incomingCall && (
+        <IncomingCall
+          callerName={incomingCall.callerName}
+          type={incomingCall.type}
+          onAnswer={handleAnswerCall}
+          onDecline={handleDeclineCall}
+        />
+      )}
 
       {callActive && (
         <CallDialog

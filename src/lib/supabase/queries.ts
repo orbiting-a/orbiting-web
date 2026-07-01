@@ -1013,18 +1013,23 @@ export async function endCallWithLog(callId: string, channelId: string) {
   const durationSec = Math.floor((Date.now() - started) / 1000);
   const mins = Math.floor(durationSec / 60);
   const secs = durationSec % 60;
-  const durationStr = mins > 0 ? `${mins}:${secs.toString().padStart(2, "0")}` : `${secs}s`;
   const icon = call.type === "video" ? "📹" : "📞";
+  const wasConnected = call.status === "connected";
 
+  const status = wasConnected ? "ended" : "missed";
   await supabase
     .from("calls")
-    .update({ status: "ended", ended_at: now })
+    .update({ status, ended_at: now })
     .eq("id", callId);
+
+  const content = wasConnected
+    ? `${icon} Call ended (${mins}:${secs.toString().padStart(2, "0")})`
+    : `${icon} Missed ${call.type} call`;
 
   await supabase.from("messages").insert({
     channel_id: channelId,
     sender_id: user.id,
-    content: `${icon} Call ended (${durationStr})`,
+    content,
   });
 }
 

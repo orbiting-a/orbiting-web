@@ -4,28 +4,35 @@ import { useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getCurrentUser } from "@/lib/auth";
 
+const ONLINE_CHANNEL = "orbit-presence";
+
 export function PresenceProvider({ children }: { children: React.ReactNode }) {
   const trackedRef = useRef(false);
 
   useEffect(() => {
     let channel: ReturnType<ReturnType<typeof createClient>["channel"]> | null = null;
+    let interval: ReturnType<typeof setInterval> | undefined;
 
     getCurrentUser().then((user) => {
       if (!user || trackedRef.current) return;
       trackedRef.current = true;
 
       const supabase = createClient();
-      channel = supabase.channel(`presence:${user.id}`, {
-        config: { presence: { key: user.id } },
-      });
-      channel.subscribe((status) => {
+      channel = supabase.channel(ONLINE_CHANNEL);
+
+      channel.subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          channel!.track({ user_id: user.id, online_at: new Date().toISOString() });
+          await channel!.track({ user_id: user.id, online_at: Date.now() });
         }
       });
+
+      interval = setInterval(() => {
+        channel?.track({ user_id: user.id, online_at: Date.now() }).catch(() => {});
+      }, 30000);
     });
 
     return () => {
+      clearInterval(interval);
       channel?.unsubscribe();
     };
   }, []);

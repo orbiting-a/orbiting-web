@@ -28,6 +28,11 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
     getCurrentUser().then((u) => setCurrentUser(u));
   }, []);
 
+  async function fetchUnread() {
+    const unread = await getUnreadCounts();
+    setUnreadCounts(Object.fromEntries(unread.map((u) => [u.channel_id, u.count])));
+  }
+
   useEffect(() => {
     async function load() {
       const channels = await getMyChannels();
@@ -35,8 +40,8 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
 
       const mm: Record<string, Profile[]> = {};
       const lm: Record<string, { content: string | null; created_at: string } | null> = {};
-      const [unread] = await Promise.all([
-        getUnreadCounts(),
+      await Promise.all([
+        fetchUnread(),
         Promise.all(channels.map(async (ch) => {
           const [members, lastMsg] = await Promise.all([
             getChannelMembers(ch.id),
@@ -48,19 +53,20 @@ export function ChatList({ filter = "All" }: { filter?: string }) {
       ]);
       setMembersMap(mm);
       setLastMsgMap(lm);
-      setUnreadCounts(Object.fromEntries(unread.map((u) => [u.channel_id, u.count])));
       setLoading(false);
     }
     load();
   }, []);
 
   useEffect(() => {
-    if (pathname === "/chat") {
-      getUnreadCounts().then((unread) => {
-        setUnreadCounts(Object.fromEntries(unread.map((u) => [u.channel_id, u.count])));
-      });
-    }
+    fetchUnread();
   }, [pathname]);
+
+  useEffect(() => {
+    const handleVisibility = () => { if (document.visibilityState === "visible") fetchUnread(); };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
 
   const filtered = useMemo(() => {
     let result = conversations;
