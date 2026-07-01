@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { cn, getInitials } from "@/lib/utils";
+import { useRef, useEffect, useState } from "react";
 
 interface AvatarProps {
   src?: string | null;
@@ -35,12 +36,26 @@ export function Avatar({
   className,
 }: AvatarProps) {
   const initials = getInitials(name || "?");
+  const prevSrc = useRef(src);
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    if (src && src !== prevSrc.current) {
+      setVersion((v) => v + 1);
+      prevSrc.current = src;
+    }
+  }, [src]);
+
+  const imageSrc = src
+    ? `${src}${src.includes("?") ? "&" : "?"}_=${version}`
+    : undefined;
 
   return (
     <div className={cn("relative inline-flex shrink-0", className)}>
-      {src ? (
+      {imageSrc ? (
         <Image
-          src={src}
+          key={version}
+          src={imageSrc}
           alt={name || "Avatar"}
           width={80}
           height={80}
@@ -48,6 +63,7 @@ export function Avatar({
             "rounded-full object-cover bg-brand-100 dark:bg-brand-900",
             sizeMap[size]
           )}
+          unoptimized
         />
       ) : (
         <div
