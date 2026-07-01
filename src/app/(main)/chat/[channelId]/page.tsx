@@ -14,6 +14,7 @@ import {
   subscribeToMessages,
 } from "@/lib/supabase/queries";
 import { getCurrentUser } from "@/lib/auth";
+import { toast } from "sonner";
 import type { Channel, Message, Profile } from "@/types/database";
 
 export default function ChannelPage({
@@ -56,9 +57,15 @@ export default function ChannelPage({
 
   const handleSend = useCallback(
     async (content: string) => {
-      const msg = await sendMessage(channelId, content);
-      if (msg) {
-        setMessages((prev) => [...prev, msg]);
+      try {
+        const msg = await sendMessage(channelId, content);
+        if (msg) {
+          setMessages((prev) => [...prev, msg]);
+        } else {
+          toast.error("Failed to send message");
+        }
+      } catch {
+        toast.error("Failed to send message");
       }
     },
     [channelId]
