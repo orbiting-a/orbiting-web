@@ -6,7 +6,8 @@ import {
   MessageCircle, Trash2, File, Download, Check, CheckCheck, MoreVertical
 } from "lucide-react";
 import type { Message, Profile } from "@/types/database";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { downloadAndCache, getMediaUrl } from "@/lib/media-cache";
 
 export function MessageList({
   messages,
@@ -108,6 +109,23 @@ function formatDate(date: string) {
     d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
+function useCachedMediaUrl(src: string) {
+  const [url, setUrl] = useState(src);
+  useEffect(() => {
+    let cancelled = false;
+    getMediaUrl(src).then((resolved) => { if (!cancelled) setUrl(resolved); });
+    return () => { cancelled = true; };
+  }, [src]);
+  return url;
+}
+
+function MediaImage({ src, className, onError, onClick }: {
+  src: string; className?: string; onError?: () => void; onClick?: () => void;
+}) {
+  const cachedSrc = useCachedMediaUrl(src);
+  return <img src={cachedSrc} alt="Shared image" className={className} onError={onError} onClick={onClick} />;
+}
+
 function MessageBubble({ msg, isOwn, onDelete, onDeleteForEveryone, showReadReceipt }: {
   msg: Message & { profiles: Profile };
   isOwn: boolean;
@@ -165,49 +183,50 @@ function MessageBubble({ msg, isOwn, onDelete, onDeleteForEveryone, showReadRece
               <div className="mb-1.5 -mx-3 -mt-2 first:mt-0">
                 {isImageUrl(msg.media_url) ? (
                   <div className="relative group/img">
-                    <img src={msg.media_url} alt="Shared image"
+                    <MediaImage src={msg.media_url}
                       className={cn("max-w-full rounded-t-2xl max-h-64 object-cover cursor-pointer", msg.content && "rounded-b-none")}
                       onError={() => setImgError(true)} onClick={() => window.open(msg.media_url!, "_blank")} />
                     {imgError && <div className="h-32 bg-surface-hover flex items-center justify-center rounded-t-2xl">
                       <File className="h-6 w-6 text-text-muted" /></div>}
-                    <a href={msg.media_url} download
+                    <button onClick={() => downloadAndCache(msg.media_url!)}
                       className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/40 text-white opacity-0 group-hover/img:opacity-100 transition-opacity hover:bg-black/60"
                       title="Download">
                       <Download className="h-4 w-4" />
-                    </a>
+                    </button>
                   </div>
                 ) : isVideoUrl(msg.media_url) ? (
                   <div className="relative">
                     <video src={msg.media_url} controls preload="metadata"
                       className={cn("max-w-full rounded-t-2xl max-h-64", msg.content && "rounded-b-none")}>
                     </video>
-                    <a href={msg.media_url} download
+                    <button onClick={() => downloadAndCache(msg.media_url!)}
                       className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/40 text-white opacity-80 hover:opacity-100 transition-opacity"
                       title="Download">
                       <Download className="h-4 w-4" />
-                    </a>
+                    </button>
                   </div>
                 ) : isAudioUrl(msg.media_url) ? (
                   <div className="p-2 flex items-center gap-2">
                     <audio src={msg.media_url} controls preload="none" className="h-10 flex-1 min-w-0" style={{ maxWidth: "200px" }} />
-                    <a href={msg.media_url} download
+                    <button onClick={() => downloadAndCache(msg.media_url!)}
                       className={cn("p-2 rounded-lg hover:bg-black/10 transition-colors shrink-0",
                         isOwn ? "hover:bg-brand-600" : "")}
                       title="Download">
                       <Download className="h-4 w-4" />
-                    </a>
+                    </button>
                   </div>
                 ) : (
-                  <a href={msg.media_url} target="_blank" rel="noopener noreferrer"
-                    className={cn("flex items-center gap-3 p-3 rounded-xl", isOwn ? "hover:bg-brand-600" : "hover:bg-surface-raised")}>
+                  <button onClick={() => downloadAndCache(msg.media_url!)}
+                    className={cn("w-full flex items-center gap-3 p-3 rounded-xl text-left cursor-pointer",
+                      isOwn ? "hover:bg-brand-600" : "hover:bg-surface-raised")}>
                     <div className={cn("h-10 w-10 rounded-lg flex items-center justify-center", isOwn ? "bg-brand-600" : "bg-surface-raised")}>
                       <File className="h-5 w-5" /></div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{fileName(msg.media_url)}</p>
-                      <p className="text-xs opacity-70">Click to download</p>
+                      <p className="text-xs opacity-70">Tap to download</p>
                     </div>
                     <Download className="h-4 w-4 shrink-0" />
-                  </a>
+                  </button>
                 )}
               </div>
             )}
