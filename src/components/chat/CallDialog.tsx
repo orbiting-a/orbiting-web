@@ -50,6 +50,8 @@ export function CallDialog({
   const mountedRef = useRef(true);
   const connectedRef = useRef(false);
   const statusUnsubRef = useRef<{ unsubscribe: () => void } | null>(null);
+  const onEndRef = useRef(onEnd);
+  useEffect(() => { onEndRef.current = onEnd; }, [onEnd]);
 
   useEffect(() => {
     if (status === "ringing") ringtoneManager.startRingback();
@@ -111,7 +113,7 @@ export function CallDialog({
 
         // === 3. Subscribe to DB call status updates (for hangup) ===
         const statusSub = subscribeToCallStatus(cid, (newStatus) => {
-          if (newStatus === "ended") onEnd();
+          if (newStatus === "ended") onEndRef.current();
         });
         statusUnsubRef.current = statusSub;
 
@@ -129,7 +131,36 @@ export function CallDialog({
           }
         };
 
-        // === 6. Fetch history signals first, then subscribe ===
+        // === 6. Subscribe FIRST (no signal gap), then process history ===
+        ablyChannel.subscribe("signal", async (msg) => {
+          const signal = msg.data as { type: string; payload: unknown; sender_id: string };
+          if (signal.sender_id === userId) return;
+
+          try {
+            if (signal.type === "offer") {
+              if (pc.signalingState !== "stable") return;
+              await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              ablyChannel?.publish("signal", { type: "answer", payload: answer, sender_id: userId });
+              await flushIce();
+            } else if (signal.type === "answer") {
+              if (pc.signalingState !== "have-local-offer") return;
+              await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
+              await flushIce();
+            } else if (signal.type === "ice-candidate") {
+              if (pc.remoteDescription && pc.remoteDescription.type) {
+                await pc.addIceCandidate(new RTCIceCandidate(signal.payload as RTCIceCandidateInit)).catch(() => {});
+              } else {
+                iceQueue.push(signal.payload as RTCIceCandidateInit);
+              }
+            }
+          } catch (err) {
+            console.error("Ably signal error:", err);
+          }
+        });
+
+        // Fetch and process history/DB signals (signalingState guards against double-processing)
         const historyPage = await ablyChannel.history({ untilAttach: true });
         const historySignals: { type: string; payload: unknown; sender_id: string }[] = [];
         for (const msg of historyPage.items) {
@@ -144,16 +175,7 @@ export function CallDialog({
         const dbSignals = await getCallSignals(cid);
         const allSignals = [...historySignals, ...dbSignals];
 
-        const seen = new Set<string>();
-        const deduped = allSignals.filter((s) => {
-          const key = `${s.type}-${s.sender_id}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-
-        // Process deduped history/DB signals first
-        for (const s of deduped) {
+        for (const s of allSignals) {
           if (!mountedRef.current) return;
           if (s.type === "offer") {
             if (pc.signalingState !== "stable") continue;
@@ -161,20 +183,10 @@ export function CallDialog({
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             ablyChannel.publish("signal", { type: "answer", payload: answer, sender_id: userId });
-            if (!connectedRef.current) {
-              connectedRef.current = true;
-              setStatus("connected");
-              updateCallStatus(cid, "connected").catch(() => {});
-            }
             await flushIce();
           } else if (s.type === "answer") {
             if (pc.signalingState !== "have-local-offer") continue;
             await pc.setRemoteDescription(new RTCSessionDescription(s.payload as RTCSessionDescriptionInit));
-            if (!connectedRef.current) {
-              connectedRef.current = true;
-              setStatus("connected");
-              updateCallStatus(cid, "connected").catch(() => {});
-            }
             await flushIce();
           } else if (s.type === "ice-candidate") {
             if (pc.remoteDescription && pc.remoteDescription.type) {
@@ -186,45 +198,6 @@ export function CallDialog({
         }
 
         if (!mountedRef.current) return;
-
-        // Then subscribe to live signals
-        ablyChannel.subscribe("signal", async (msg) => {
-          const signal = msg.data as { type: string; payload: unknown; sender_id: string };
-          if (signal.sender_id === userId) return;
-
-          try {
-            if (signal.type === "offer") {
-              if (pc.signalingState !== "stable") return;
-              await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
-              const answer = await pc.createAnswer();
-              await pc.setLocalDescription(answer);
-              ablyChannel?.publish("signal", { type: "answer", payload: answer, sender_id: userId });
-              if (!connectedRef.current) {
-                connectedRef.current = true;
-                setStatus("connected");
-                updateCallStatus(cid!, "connected").catch(() => {});
-              }
-              await flushIce();
-            } else if (signal.type === "answer") {
-              if (pc.signalingState !== "have-local-offer") return;
-              await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
-              if (!connectedRef.current) {
-                connectedRef.current = true;
-                setStatus("connected");
-                updateCallStatus(cid!, "connected").catch(() => {});
-              }
-              await flushIce();
-            } else if (signal.type === "ice-candidate") {
-              if (pc.remoteDescription && pc.remoteDescription.type) {
-                await pc.addIceCandidate(new RTCIceCandidate(signal.payload as RTCIceCandidateInit)).catch(() => {});
-              } else {
-                iceQueue.push(signal.payload as RTCIceCandidateInit);
-              }
-            }
-          } catch (err) {
-            console.error("Ably signal error:", err);
-          }
-        });
 
         // === 7. ICE candidate sending ===
         pc.onicecandidate = (event) => {
@@ -244,41 +217,45 @@ export function CallDialog({
           }
         };
 
-        // === 9. Connection state ===
+        // === 9. Connection state (sole source of "connected" status) ===
         let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
         pc.onconnectionstatechange = () => {
           if (pc.connectionState === "connected") {
             if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
-            connectedRef.current = true;
-            setStatus("connected");
-            updateCallStatus(cid!, "connected").catch(() => {});
+            if (!connectedRef.current) {
+              connectedRef.current = true;
+              setStatus("connected");
+              updateCallStatus(cid!, "connected").catch(() => {});
+            }
           } else if (pc.connectionState === "disconnected") {
             if (!disconnectTimer) {
               disconnectTimer = setTimeout(() => {
                 if (pc.connectionState !== "connected") {
                   updateCallStatus(cid!, "ended").catch(() => {});
-                  onEnd();
+                  onEndRef.current();
                 }
               }, 8000);
             }
           } else if (pc.connectionState === "failed") {
             if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
             updateCallStatus(cid!, "ended").catch(() => {});
-            setTimeout(onEnd, 1000);
+            setTimeout(() => onEndRef.current(), 1000);
           }
         };
 
         pc.oniceconnectionstatechange = () => {
           if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
             if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
-            connectedRef.current = true;
-            setStatus("connected");
-            updateCallStatus(cid!, "connected").catch(() => {});
+            if (!connectedRef.current) {
+              connectedRef.current = true;
+              setStatus("connected");
+              updateCallStatus(cid!, "connected").catch(() => {});
+            }
           } else if (pc.iceConnectionState === "failed") {
             if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
             updateCallStatus(cid!, "ended").catch(() => {});
-            setTimeout(onEnd, 1000);
+            setTimeout(() => onEndRef.current(), 1000);
           }
         };
 
@@ -297,7 +274,7 @@ export function CallDialog({
         const msg = e instanceof Error ? e.message : "Call failed";
         console.error("Call init failed", msg);
         setStatus(`Error: ${msg}`);
-        setTimeout(onEnd, 3000);
+        setTimeout(() => onEndRef.current(), 3000);
       }
     }
 
@@ -316,7 +293,7 @@ export function CallDialog({
       pcRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelId, userId, otherUserId, initialType, existingCallId, isCaller, onEnd]);
+  }, [channelId, userId, otherUserId, initialType, existingCallId, isCaller]);
 
   const toggleMute = () => {
     localStreamRef.current?.getAudioTracks().forEach((t) => { t.enabled = muted; });
@@ -348,7 +325,7 @@ export function CallDialog({
       const { updateCallStatus } = await import("@/lib/supabase/queries");
       await updateCallStatus(callId, "ended").catch(() => {});
     }
-    onEnd();
+    onEndRef.current();
   };
 
   return (
