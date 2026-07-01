@@ -121,8 +121,10 @@ export function CallDialog({
         }
 
       } catch (e) {
-        console.error("Call init failed", e);
-        onEnd();
+        const msg = e instanceof Error ? e.message : "Call failed";
+        console.error("Call init failed", msg);
+        setStatus(`Error: ${msg}`);
+        setTimeout(onEnd, 3000);
       }
     }
 

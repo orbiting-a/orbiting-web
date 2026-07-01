@@ -27,6 +27,7 @@ export function ChatInput({
   const [recordDuration, setRecordDuration] = useState(0);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordingStream, setRecordingStream] = useState<MediaStream | null>(null);
+  const [sendingVoice, setSendingVoice] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
@@ -124,11 +125,13 @@ export function ChatInput({
     clearInterval(recordTimerRef.current);
   };
 
-  const sendRecording = () => {
-    if (!recordedBlob) return;
+  const sendRecording = async () => {
+    if (!recordedBlob || sendingVoice) return;
+    setSendingVoice(true);
     const file = Object.assign(new Blob([recordedBlob], { type: "audio/webm" }), { name: `voice-${Date.now()}.webm`, lastModified: Date.now() }) as File;
-    onSendFile?.(file);
+    await onSendFile?.(file);
     setRecordedBlob(null);
+    setSendingVoice(false);
   };
 
   const isImage = filePreview?.type.startsWith("image/");
@@ -199,18 +202,19 @@ export function ChatInput({
       )}
 
       {recordedBlob && !recording && (
-        <div className="mb-3 p-3 glass-card-static flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-green-400/10 flex items-center justify-center shrink-0">
-            <Mic className="h-5 w-5 text-green-400" />
+        <div className="mb-3 p-2 sm:p-3 glass-card-static flex items-center gap-2 sm:gap-3">
+          <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg bg-green-400/10 flex items-center justify-center shrink-0">
+            <Mic className="h-4 w-4 sm:h-5 sm:w-5 text-green-400" />
           </div>
-          <audio src={URL.createObjectURL(recordedBlob)} controls preload="metadata" className="h-9 flex-1" style={{ maxWidth: "200px" }} />
-          <span className="text-xs text-text-muted">{recordDuration}s</span>
-          <button onClick={cancelRecording}
-            className="p-1.5 rounded-lg text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors">
-            <X className="h-4 w-4" />
+          <audio src={URL.createObjectURL(recordedBlob)} controls preload="metadata"
+            className="h-8 sm:h-9 flex-1 min-w-0 w-20 sm:w-auto" />
+          <span className="text-[10px] sm:text-xs text-text-muted shrink-0">{recordDuration}s</span>
+          <button onClick={cancelRecording} disabled={sendingVoice}
+            className="p-1 sm:p-1.5 rounded-lg text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-30">
+            <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </button>
-          <Button variant="primary" size="sm" onClick={sendRecording}>
-            <Send className="h-4 w-4" />
+          <Button variant="primary" size="sm" className="shrink-0 h-8 sm:h-9" onClick={sendRecording} loading={sendingVoice} disabled={sendingVoice}>
+            <Send className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </Button>
         </div>
       )}

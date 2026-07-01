@@ -20,7 +20,6 @@ import {
   deleteMessageForEveryone,
   markChannelRead,
   leaveChannel,
-  createCall,
 } from "@/lib/supabase/queries";
 import { getCurrentUser } from "@/lib/auth";
 import { toast } from "sonner";
@@ -67,7 +66,9 @@ export default function ChannelPage({
           getMessages(channelId),
           getChannelMembers(channelId),
         ]);
-        setMessages(msgs);
+        setMessages(msgs.map((m) => m.sender_id !== currentUserId ? { ...m, is_read: true } : m));
+        // Mark as read immediately
+        if (currentUserId) markChannelRead(channelId).catch(() => {});
         setMembers(mems);
       } catch {
       }
@@ -80,16 +81,18 @@ export default function ChannelPage({
   useEffect(() => {
     if (!channelId || channelId === "undefined") return;
     const sub = subscribeToMessages(channelId, (msg) => {
-      setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev;
+        // Auto-mark incoming messages as read
+        if (currentUserId && msg.sender_id !== currentUserId) {
+          markChannelRead(channelId);
+          return [...prev, { ...msg, is_read: true }];
+        }
+        return [...prev, msg];
+      });
     });
     return () => { void sub.unsubscribe(); };
-  }, [channelId]);
-
-  useEffect(() => {
-    if (!channelId || channelId === "undefined" || !currentUserId) return;
-    const timer = setTimeout(() => markChannelRead(channelId), 500);
-    return () => clearTimeout(timer);
-  }, [channelId, currentUserId, messages]);
+  }, [channelId, currentUserId]);
 
   // Listen for incoming calls
   useEffect(() => {
@@ -234,13 +237,10 @@ export default function ChannelPage({
         </div>
         <div className="flex items-center gap-1 shrink-0 relative">
           <button
-            onClick={async () => {
+            onClick={() => {
               const calleeId = otherMembers[0]?.id;
               if (!calleeId || !currentUserId) return;
-              try {
-                const call = await createCall(channelId, calleeId, "audio");
-                setCallActive({ type: "audio", callId: call.id, isCaller: true });
-              } catch { toast.error("Failed to start call"); }
+              setCallActive({ type: "audio", isCaller: true });
             }}
             className={`p-2 rounded-lg transition-colors ${
               callActive
@@ -251,13 +251,10 @@ export default function ChannelPage({
             <Phone className="h-4 w-4" />
           </button>
           <button
-            onClick={async () => {
+            onClick={() => {
               const calleeId = otherMembers[0]?.id;
               if (!calleeId || !currentUserId) return;
-              try {
-                const call = await createCall(channelId, calleeId, "video");
-                setCallActive({ type: "video", callId: call.id, isCaller: true });
-              } catch { toast.error("Failed to start call"); }
+              setCallActive({ type: "video", isCaller: true });
             }}
             className={`p-2 rounded-lg transition-colors ${
               callActive?.type === "video"
